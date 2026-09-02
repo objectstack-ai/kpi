@@ -48,6 +48,15 @@ describe('同周期唯一生效版本(第 10 章第 10 项 / 设计 5.2)', () =>
     expect(message).toBe('发布失败:该考核周期已有生效版本「2026 年 8 月 月度考核」。请先关闭该版本,或改用复制出的新版本替换。');
   });
 
+  it('不同组织的同周期方案互不冲突 —— 租户隔离(组织按等值比较)', () => {
+    const mine = { ...draft, organization_id: 'org_a' };
+    expect(findPublishedConflict([{ ...live, organization_id: 'org_b' }], mine)).toBeNull();
+    expect(findPublishedConflict([{ ...live, organization_id: 'org_a' }], mine)?.id).toBe('p_live');
+    // 有一边读不出组织时退回只按周期判定 —— 缺字段不能变成静默放行
+    expect(findPublishedConflict([{ ...live, organization_id: 'org_b' }], draft)?.id).toBe('p_live');
+    expect(findPublishedConflict([live], mine)?.id).toBe('p_live');
+  });
+
   it('已关闭 / 已归档不是生效版本,不阻断发布;草稿同样不阻断;自己不挡自己', () => {
     expect(findPublishedConflict([{ ...live, status: 'closed' }], draft)).toBeNull();
     expect(findPublishedConflict([{ ...live, status: 'archived' }], draft)).toBeNull();

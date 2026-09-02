@@ -127,13 +127,26 @@ export const EntryLine = ObjectSchema.create({
       deleteBehavior: 'cascade',
       inlineEdit: 'grid',
       inlineTitle: '指标填报',
-      // 内嵌网格的列显式声明(身份列,类型 / 标签由子对象字段定义补齐),这样「已调整」
-      // 与「调整类型」在填报单里也看得见,而不只在明细列表视图里。
+      /**
+       * 内嵌网格的列**显式**声明 —— 只为让「已调整 / 调整类型」在填报单里也看得见。
+       *
+       * 显式声明会**整体替换**平台从子对象派生的列集,所以这里必须列全:下面前 17 项就是
+       * 本对象除主从字段(`sheet`)之外的全部字段,顺序与字段定义一致(= 原派生顺序),
+       * 新增的两列排在最后。冗长但仍要留在网格里的三列(计算说明、最近调整、指标)用平台
+       * 原生的 `defaultHidden` 折叠 —— 默认不占宽度,列选择器里仍能打开,而不是删掉。
+       *
+       * 每项只写 `name`(身份列):不声明 `type` 时,标签、类型、选项、lookup 目标与联动
+       * 规则都由子对象自己的字段定义补齐,列与字段因此不会各说各话。
+       */
       inlineColumns: [
-        { name: 'indicator_name' }, { name: 'unit' }, { name: 'target_value' }, { name: 'weight' },
-        { name: 'actual_value' }, { name: 'completion_rate' }, { name: 'score_rate' }, { name: 'score' },
-        { name: 'adjusted_score' }, { name: 'is_adjusted' }, { name: 'adjust_type_applied' },
-        { name: 'final_score' }, { name: 'remark' },
+        { name: 'plan_indicator', required: true }, { name: 'indicator', defaultHidden: true },
+        { name: 'indicator_name' }, { name: 'unit' }, { name: 'direction' }, { name: 'scoring_method' },
+        { name: 'target_value' }, { name: 'weight' }, { name: 'actual_value' },
+        { name: 'completion_rate' }, { name: 'score_rate' }, { name: 'score' },
+        { name: 'adjusted_score' }, { name: 'final_score' },
+        { name: 'calc_trace', defaultHidden: true }, { name: 'last_adjustment', defaultHidden: true },
+        { name: 'remark' },
+        { name: 'is_adjusted' }, { name: 'adjust_type_applied' },
       ],
     }),
     plan_indicator: Field.lookup('kpi_plan_indicator', { label: '来源下达', required: true }),

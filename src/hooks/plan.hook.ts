@@ -22,6 +22,8 @@ export interface PlanPeriodKey {
   period_no?: unknown;
   name?: unknown;
   status?: unknown;
+  /** 租户隔离锚点(平台注入的组织归属)。 */
+  organization_id?: unknown;
 }
 
 /** 两条方案是否落在同一个考核周期(期数按数值比较,避免 "1" 与 1 判成不同周期)。 */
@@ -34,13 +36,29 @@ export function samePeriod(a: PlanPeriodKey, b: PlanPeriodKey): boolean {
 }
 
 /**
+ * 两条方案是否属于同一租户。
+ *
+ * 只在**两边都带**组织归属时才比较:带了就必须相等(多租户下别家的方案挡不住本家的发布);
+ * 有一边没有(单租户部署、或调用方没把该列读出来)就退回只按周期判定 —— 宁可多挡一次让人
+ * 看见,也不因为缺一个字段而**静默**放行一个本该被拒的发布。
+ */
+function sameTenant(a: PlanPeriodKey, b: PlanPeriodKey): boolean {
+  const x = a.organization_id ? String(a.organization_id) : '';
+  const y = b.organization_id ? String(b.organization_id) : '';
+  if (!x || !y) return true;
+  return x === y;
+}
+
+/**
  * 在候选方案里找出挡住本次发布的生效版本 —— 纯函数,唯一性口径的唯一真值(单元测试点)。
- * 候选由调用方按「已发布」筛出;这里再判一次状态,保证口径不依赖调用方的查询条件。
+ * 候选由调用方按「已发布」+ 本租户筛出;这里再判一次状态与租户,保证口径不依赖调用方的
+ * 查询条件(查询条件是性能优化,判定不能只靠它)。
  */
 export function findPublishedConflict(candidates: PlanPeriodKey[], self: PlanPeriodKey): PlanPeriodKey | null {
   for (const c of candidates ?? []) {
     if (String(c.status ?? '') !== 'published') continue;
     if (self.id && String(c.id ?? '') === String(self.id)) continue;
+    if (!sameTenant(c, self)) continue;
     if (samePeriod(c, self)) return c;
   }
   return null;
@@ -158,9 +176,17 @@ export const PlanPublishHook: Hook = {
 
     // 同周期唯一生效版本:先于完整性检查判定 —— 这一条与方案内部配置无关,先说清楚
     // 「这个周期已经有生效版本了」比让作者先去补权重更省事。
+    //
+    // 查询走系统上下文(要看到本租户里当前用户未必可见的方案),所以租户隔离得自己带上:
+    // 组织归属从**落库的方案行**上取,不从 ctx.previous 取 —— 那里未必带这一列。与
+    // services/sharing-service.ts 的做法一致:组织是等值条件,不做宽松匹配。
     const period = merged<Record<string, any>>(ctx);
-    const published = await api.object('kpi_plan').find({ where: { status: 'published' } });
-    const conflict = findPublishedConflict(published as PlanPeriodKey[], { ...period, id });
+    const self = await findById(api, 'kpi_plan', id);
+    const organizationId = self?.organization_id ? String(self.organization_id) : null;
+    const where: Record<string, unknown> = { status: 'published' };
+    if (organizationId) where.organization_id = organizationId;
+    const published = await api.object('kpi_plan').find({ where });
+    const conflict = findPublishedConflict(published as PlanPeriodKey[], { ...period, id, organization_id: organizationId });
     if (conflict) fail(planPeriodConflictMessage(String(conflict.name ?? '')), PLAN_PERIOD_CONFLICT_CODE);
 
     const problems: string[] = [];
