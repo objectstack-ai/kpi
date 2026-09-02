@@ -2,7 +2,7 @@
 
 本仓库是基于 ObjectStack 平台(`@objectstack/*` 17.x)开发的 KPI 考核管理系统。
 流程资产采用 `os-project-*` skill 库(baozhoutao/os-project-skills);领域知识 skill
-(`os-project-kb-<行业>`)待需求定稿后再建。**开工前必读**:`docs/需求/KPI考核管理系统-功能性需求文档-V1.3.md`(客户原始需求)、`docs/00-设计方案.md`(确认后为唯一需求基准)、`docs/01-需求解读报告.md`、`docs/02-总体方案蓝图.md`、
+(`os-project-kb-<行业>`)待需求定稿后再建。**开工前必读**:`docs/需求/KPI考核管理系统-功能性需求文档-V1.3.md`(客户原始需求)、`docs/00-设计方案.md`(V1.0 客户确认版,唯一需求基准)、`docs/01-需求解读报告.md`、`docs/02-总体方案蓝图.md`、
 `docs/03-方案分级.md`、`docs/04-需求符合度清单.md`。
 
 ## 构建与验证
@@ -25,7 +25,7 @@ pnpm dev          # http://localhost:3000 ;Console 在 /_console/ ;管理员 adm
   os-project-std-copy 四条红线:无内部代号、无异常原文、名词按需求文档 §1.4 术语表、报错三段式;
 - 数字字段四件套(小数位/最小值/最大值/单位)必须显式声明,禁用平台默认;
 - 计分口径唯一真值在 `src/lib/scoring.ts`,任何得分都经它算,禁止在视图/公式字段里二次实现;
-- 审核状态机唯一真值在 `src/hooks/sheet-transition.hook.ts`,按钮只改状态字段,规则全在 hook;
+- 审核状态机唯一真值在 `src/hooks/sheet.hook.ts`,按钮只改状态字段,规则全在 hook;
 - 归档快照与已通过填报单只读,禁止绕过 hook 直写;
 - 不得修改 `node_modules` 内平台包;平台能力受限按 dev-issue 支线 B 上报 objectstack-ai/objectstack。
 
