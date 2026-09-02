@@ -365,6 +365,73 @@ const seededIds = ['bu_hq', 'bu_market', 'bu_ops', 'bu_hr', 'bu_east', 'bu_south
 const seeded = demoUnits.filter((u) => seededIds.includes(u.id));
 log('T52', '演示种子组织单元在启动时被补上组织归属(与 Setup 里新建的单元一致)', seeded.length === seededIds.length && seeded.every((u) => !!u.organization_id), seeded.map((u) => `${u.id}:${u.organization_id ?? 'null'}`).join(' '));
 
+
+// ── 13 已确认设计口径(《设计方案》V1.0 第 10 章第 6 / 10 / 13 / 14 项)────────────────
+// 岗位判定要用真实的非管理员账号验证:管理员(组织 owner)对所有岗位判定放行。
+// 这里用部门填报人员 A —— 它对 plan4 的市场部填报单有记录级编辑权(方案发布写入的共享
+// 规则),所以能走到 hook,岗位判定是它被拒的**唯一**原因。
+// 人力审核 / 人力负责人账号本身走不到这一步:填报单 OWD 为 private,共享规则只写给参与
+// 主体、分公司与分管领导,人力岗位没有记录级写权限(现象与最小复现见 docs/05 问题记录 #1)。
+await signIn(EMAIL.a);
+await waitUntil('新方案的市场部填报单共享给 A', async () => (await list('kpi_entry_sheet', '?limit=100')).some((x) => x.id === market4.id));
+r = await post('kpi_bonus', { sheet: market4.id, title: '越权登记', bonus_type: 'add', points: 1, reason: '岗位反例' });
+asAdmin();
+log('T58', '非人力审核岗位登记加减分被拒绝(第 10 章第 6 项:人力审核提出)', r.status >= 400 && msg(r).includes('只有人力审核岗位可以登记加减分'), `status=${r.status} ${msg(r)}`);
+
+// 审批岗位反例:同一个账号对已存在的加减分点「批准」,被岗位判定拒绝
+r = await post('kpi_bonus', { sheet: market4.id, title: '安全生产先进', bonus_type: 'add', points: 2, reason: '季度评优' });
+const bonus2 = one(r);
+await signIn(EMAIL.a);
+const selfApprove = await patch('kpi_bonus', bonus2.id, { status: 'approved' });
+asAdmin();
+log('T59', '非人力负责人岗位批准加减分被拒绝(第 10 章第 6 项:人力负责人审批)', selfApprove.status >= 400 && msg(selfApprove).includes('只有人力负责人岗位可以审批加减分'), `status=${selfApprove.status} ${msg(selfApprove)}`);
+
+// 人力负责人岗位(管理员等同该岗位)批准 → 成功,填报单最终得分随之重算
+const before60 = await get('kpi_entry_sheet', market3.id);
+r = await post('kpi_bonus', { sheet: market3.id, title: '重点工作表彰', bonus_type: 'add', points: 2, reason: '按第 6 项由人力负责人审批' });
+const bonusHead = one(r);
+r = await patch('kpi_bonus', bonusHead.id, { status: 'approved' });
+const after60 = await get('kpi_entry_sheet', market3.id);
+const bonusRow = await get('kpi_bonus', bonusHead.id);
+log('T60', '人力负责人岗位批准加减分成功,最终得分随之重算', r.status < 300 && bonusRow.status === 'approved' && !!bonusRow.approved_by && Number(after60.bonus_total) === Number(before60.bonus_total) + 2 && Number(after60.total_score) === Number(before60.total_score) + 2, `before=${before60.total_score} after=${after60.total_score} bonus_total=${after60.bonus_total}`);
+
+// 同一周期只有一个生效版本(第 10 章第 10 项):plan4(2026 年 11 月)已发布
+r = await post('kpi_plan', { name: '2026 年 11 月 月度考核(重复周期)', period_type: 'month', year: 2026, period_no: 11, period_start: '2026-11-01', period_end: '2026-11-30', based_on: plan.id });
+const planDup = one(r);
+const dupPublish = await patch('kpi_plan', planDup.id, { status: 'published' });
+await patch('kpi_plan', plan4.id, { status: 'closed' });
+const afterClose = await patch('kpi_plan', planDup.id, { status: 'published' });
+const planDupRow = await get('kpi_plan', planDup.id);
+log('T61', '同周期已有生效版本时发布被拒并点名该版本;关闭后可发布(第 10 章第 10 项)', dupPublish.status >= 400 && msg(dupPublish).includes('该考核周期已有生效版本「2026 年 11 月 月度考核」') && afterClose.status < 300 && planDupRow.status === 'published', `dup=${dupPublish.status} ${msg(dupPublish).slice(0, 160)} | after_close=${afterClose.status} status=${planDupRow.status}`);
+
+// 结果调整落地后标记「已调整」(第 10 章第 14 项 = A)
+const m3lines = await list('kpi_entry_line', `?sheet=${market3.id}&limit=50`);
+const adjLine = m3lines.find((l) => l.indicator_name === '客户满意度') ?? m3lines[0];
+const keptLine = m3lines.find((l) => l.id !== adjLine.id);
+r = await post('kpi_adjustment', { line: adjLine.id, adjust_type: 'result', new_value: 12.5, reason: '复核后按第 14 项调整该指标得分' });
+const adj2 = one(r);
+await patch('kpi_adjustment', adj2.id, { status: 'submitted' });
+r = await patch('kpi_adjustment', adj2.id, { status: 'approved' });
+const adjustedLine = await get('kpi_entry_line', adjLine.id);
+const untouchedLine = await get('kpi_entry_line', keptLine.id);
+const truthy = (v) => v === true || v === 1 || v === 'true';
+log('T62', '结果调整落地后该行标记「已调整」= 是、调整类型 = 计算结果,未调整行保持否', truthy(adjustedLine.is_adjusted) && adjustedLine.adjust_type_applied === 'result' && Number(adjustedLine.adjusted_score) === 12.5 && Number(adjustedLine.final_score) === 12.5 && !truthy(untouchedLine.is_adjusted) && !untouchedLine.adjust_type_applied, `adjusted: is_adjusted=${adjustedLine.is_adjusted} type=${adjustedLine.adjust_type_applied} final=${adjustedLine.final_score} | untouched: is_adjusted=${untouchedLine.is_adjusted} ${msg(r).slice(0, 80)}`);
+
+const resAfterAdjust = await list('kpi_result', `?plan=${plan3.id}&limit=100`);
+const deptRow3 = resAfterAdjust.find((x) => x.dimension === 'department' && x.unit === 'bu_market');
+const parseJson = (v) => { if (!v) return null; if (typeof v === 'object') return v; try { return JSON.parse(v); } catch { return null; } };
+const bd = parseJson(deptRow3?.breakdown);
+const bdLine = (bd?.lines ?? []).find((l) => String(l.plan_indicator) === String(adjLine.plan_indicator));
+const bdKept = (bd?.lines ?? []).find((l) => String(l.plan_indicator) === String(keptLine.plan_indicator));
+log('T63', '考核结果的计算明细 JSON 逐指标带 is_adjusted,被调整的那条为 true', !!bdLine && bdLine.is_adjusted === true && bdLine.adjust_type_applied === 'result' && !!bdKept && bdKept.is_adjusted === false, `lines=${(bd?.lines ?? []).length} adjusted=${JSON.stringify(bdLine ?? null)}`);
+
+// 分公司核对人员只能确认 / 提出争议,不能改值(第 10 章第 13 项 = A)
+await signIn(EMAIL.b);
+r = await patch('kpi_entry_line', adjLine.id, { actual_value: 1 });
+asAdmin();
+const stillLine = await get('kpi_entry_line', adjLine.id);
+log('T64', '分公司核对人员直接修改填报明细实际值被拒绝(第 10 章第 13 项:只能确认 / 提出争议)', r.status >= 400 && Number(stillLine.actual_value) === Number(adjustedLine.actual_value), `status=${r.status} ${msg(r).slice(0, 140)}`);
+
 const summary = { passed: results.filter((x) => x.ok).length, failed: results.filter((x) => !x.ok).length };
 console.log(JSON.stringify(summary));
 import('node:fs').then((fs) => fs.writeFileSync(process.argv[2] ?? '/dev/null', JSON.stringify(results, null, 2)));

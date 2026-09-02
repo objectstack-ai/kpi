@@ -1,4 +1,4 @@
-import { aggregateResults, type AssignmentDef, type SheetSummary, type SubjectDef } from '../lib/aggregate.js';
+import { aggregateResults, type AssignmentDef, type SheetLineSummary, type SheetSummary, type SubjectDef } from '../lib/aggregate.js';
 import { nowIso, toNumber, type Api } from '../hooks/util.js';
 
 /**
@@ -31,8 +31,18 @@ export async function regenerateResults(api: Api, planId: string): Promise<numbe
   for (const s of sheets) {
     const lines = await api.object('kpi_entry_line').find({ where: { sheet: s.id } });
     const lineScoreRates: Record<string, number> = {};
+    const lineSummaries: SheetLineSummary[] = [];
     for (const l of lines) {
-      if (l.plan_indicator) lineScoreRates[String(l.plan_indicator)] = toNumber(l.score_rate) ?? 0;
+      if (!l.plan_indicator) continue;
+      lineScoreRates[String(l.plan_indicator)] = toNumber(l.score_rate) ?? 0;
+      lineSummaries.push({
+        planIndicatorId: String(l.plan_indicator),
+        indicatorName: (l.indicator_name as string | undefined) ?? null,
+        scoreRate: toNumber(l.score_rate) ?? 0,
+        score: toNumber(l.final_score) ?? 0,
+        isAdjusted: l.is_adjusted === true,
+        adjustTypeApplied: (l.adjust_type_applied as string | undefined) ?? null,
+      });
     }
     const indicatorScore = lines.reduce((sum: number, l: Record<string, unknown>) => sum + (toNumber(l.final_score) ?? 0), 0);
     const bonuses = await api.object('kpi_bonus').find({ where: { sheet: s.id, status: 'approved' } });
@@ -44,6 +54,7 @@ export async function regenerateResults(api: Api, planId: string): Promise<numbe
       subjectType: String(s.subject_type ?? 'department'),
       totalScore: Math.round((indicatorScore + bonusTotal) * 100) / 100,
       lineScoreRates,
+      lines: lineSummaries,
     });
   }
 
