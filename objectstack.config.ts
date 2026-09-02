@@ -13,6 +13,7 @@ import { registerKpiPositionBindings } from './src/security/bind-position-sets.j
 import { KpiTranslationBundle } from './src/translations/index.js';
 import { KpiSeedData } from './src/data/index.js';
 import { registerDemoUnitAlignment } from './src/data/align-demo-units.js';
+import { registerPlanLinkBackfill } from './src/data/backfill-plan-links.js';
 
 /**
  * KPI 考核管理系统 — 基于 ObjectStack 的独立应用。
@@ -57,4 +58,6 @@ export const onEnable = async (ctx: unknown): Promise<void> => {
   registerKpiPositionBindings(ctx as Parameters<typeof registerKpiPositionBindings>[0]);
   // 演示夹具的租户对齐 —— 临时,随 objectstack-ai/objectstack#14547 的平台修复一起删除。
   registerDemoUnitAlignment(ctx as Parameters<typeof registerDemoUnitAlignment>[0]);
+  // 历史行的方案回填:升级前建的核对任务 / 数据调整 plan 为空,落不进按方案的共享规则条件。
+  registerPlanLinkBackfill(ctx as Parameters<typeof registerPlanLinkBackfill>[0]);
 };
