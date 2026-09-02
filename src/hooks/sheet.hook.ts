@@ -168,7 +168,7 @@ export const SheetAfterTransitionHook: Hook = {
         if (String(b.subject) === String(now.subject ?? prev.subject)) continue;
         if (existingBranches.has(String(b.subject))) continue;
         const bu = await findById(api, 'sys_business_unit', b.subject);
-        await api.object('kpi_check_task').insert({ name: `${sheetName} · ${bu?.name ?? b.subject} 核对`, sheet: id, branch: b.subject, status: 'pending' });
+        await api.object('kpi_check_task').insert({ name: `${sheetName} · ${bu?.name ?? b.subject} 核对`, sheet: id, plan: now.plan ?? prev.plan, branch: b.subject, status: 'pending' });
       }
       if (action === 'reject') {
         for (const t of existing) {

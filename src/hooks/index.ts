@@ -2,7 +2,7 @@ import type { Hook } from '@objectstack/spec/data';
 import { EntryLineDeleteGuardHook, EntryLineScoreHook } from './entry-line.hook.js';
 import { SheetAfterTransitionHook, SheetDeleteGuardHook, SheetInsertGuardHook, SheetTransitionHook } from './sheet.hook.js';
 import { CheckTaskAfterDecideHook, CheckTaskDecideHook } from './check-task.hook.js';
-import { PersonalItemFreezeHook, PlanChildFreezeHook, PlanChildNameHook, PlanCloneHook, PlanPublishHook } from './plan.hook.js';
+import { PersonalItemFreezeHook, PlanChildFreezeHook, PlanChildNameHook, PlanCloneHook, PlanFreezeSharingHook, PlanPublishHook } from './plan.hook.js';
 import { DisputeAfterRaiseHook, DisputeAfterResolveHook, DisputeRaiseHook, DisputeResolveHook } from './dispute.hook.js';
 import { BonusAfterDecideHook, BonusHook } from './bonus.hook.js';
 import { AdjustmentHook } from './adjustment.hook.js';
@@ -22,6 +22,7 @@ export const allHooks: Hook[] = [
   PersonalItemFreezeHook,
   PlanChildNameHook,
   PlanPublishHook,
+  PlanFreezeSharingHook,
   PlanCloneHook,
   DisputeRaiseHook,
   DisputeAfterRaiseHook,

@@ -179,6 +179,9 @@ export const CheckTask = ObjectSchema.create({
   fields: {
     name: Field.text({ label: '任务名称', readonly: true, maxLength: 300 }),
     sheet: Field.lookup('kpi_entry_sheet', { label: '填报单', required: true }),
+    // 冗余存一份方案:数据范围按「方案 × 分公司」授权,共享规则的条件需要一个能直接筛的
+    // 方案字段(条件只能比较本对象的列,不能顺着填报单跳一层)。由系统在生成任务时写入。
+    plan: Field.lookup('kpi_plan', { label: '考核方案', readonly: true }),
     branch: Field.lookup('sys_business_unit', { label: '核对分公司', required: true }),
     status: Field.select({
       label: '核对状态',
@@ -324,6 +327,8 @@ export const Adjustment = ObjectSchema.create({
   fields: {
     name: Field.autonumber({ label: '调整单号', autonumberFormat: 'TZ-{YYYY}{MM}-{0000}' }),
     sheet: Field.lookup('kpi_entry_sheet', { label: '填报单', required: true }),
+    // 与核对任务同理:数据范围按「方案 × 考核主体」授权,方案要能直接筛。由 hook 写入。
+    plan: Field.lookup('kpi_plan', { label: '考核方案', readonly: true }),
     subject: Field.lookup('sys_business_unit', { label: '考核主体', readonly: true }),
     line: Field.lookup('kpi_entry_line', { label: '调整的指标明细', required: true }),
     adjust_type: Field.select({

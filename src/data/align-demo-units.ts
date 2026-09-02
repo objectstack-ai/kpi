@@ -36,9 +36,27 @@ function rowsOf(result: unknown): Array<Record<string, any>> {
   return Array.isArray(records) ? (records as Array<Record<string, any>>) : [];
 }
 
-/** 生产环境一律不跑;其余环境(dev / test)才是演示夹具的用武之地。 */
-export function isDemoEnvironment(nodeEnv: string | undefined = process.env.NODE_ENV): boolean {
-  return String(nodeEnv ?? '').toLowerCase() !== 'production';
+/**
+ * 平台判定「当前是哪个环境」的唯一拼法:`NODE_ENV || 'production'` —— **缺省即生产**。
+ *
+ * 三处同拼,以此为准:`cli/src/commands/doctor.ts` 的 `doctorNodeEnv`、`os start`(未设时
+ * 强制 production)、`serve.ts`。⚠️ 平台的种子加载器(`runtime/src/seed-loader.ts`)本身
+ * **没有**环境闸门 —— 它一个 `env` 字样都没有,种子上的 `env: ['dev','test']` 目前不由它
+ * 执行;所以这里对齐的是平台进程级的判定,不是种子加载器的(它没有)。
+ */
+export function resolveEnvironmentMode(env: NodeJS.ProcessEnv = process.env): string {
+  return env.NODE_ENV || 'production';
+}
+
+/** 演示夹具允许运行的环境 —— 与种子自己声明的 `env: ['dev','test']` 对齐(默认闭)。 */
+const DEMO_ENVIRONMENTS: ReadonlySet<string> = new Set(['dev', 'development', 'test']);
+
+/**
+ * 只在 dev / test 跑。**允许名单**而不是「不是 production 就跑」:`NODE_ENV` 未设时平台
+ * 按生产处理,写成排除法会让未设的环境默认打开,方向正好和平台相反。
+ */
+export function isDemoEnvironment(env: NodeJS.ProcessEnv = process.env): boolean {
+  return DEMO_ENVIRONMENTS.has(resolveEnvironmentMode(env));
 }
 
 /**
