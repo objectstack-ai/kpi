@@ -1,6 +1,7 @@
 import type { Hook, HookContext } from '@objectstack/spec/data';
 import { actorId, fail, findById, isSystem, merged, nameOf, nowIso, recordId, sys, toNumber, writeReview } from './util.js';
 import { validateSteps, type PlanStepDef } from '../lib/workflow.js';
+import { provisionPlanSharing } from '../services/sharing-service.js';
 import { loadPlanSteps } from './sheet.hook.js';
 
 const FROZEN_MESSAGE = '修改失败:方案已发布,配置已冻结。如需调整指标、权重、目标或流程,请新建方案版本。';
@@ -106,6 +107,9 @@ export const PlanPublishHook: Hook = {
       }
       return;
     }
+    // 已发布 → 已关闭 / 已归档:方案结束后留读、去写(填报单 / 核对任务 / 调整由 edit 降为
+    // read,结果本就只读)。副作用挂在 after 阶段的 PlanFreezeSharingHook 上,避免主写入被
+    // 平台校验拒绝时留下半截改动。
     if (!(prev.status === 'draft' && input.status === 'published')) return;
 
     const problems: string[] = [];
@@ -171,6 +175,14 @@ export const PlanPublishHook: Hook = {
       }
       await writeReview(api, { sheet: sheetId, action: 'generate', step_label: '方案发布', from_status: null, to_status: 'draft', actor, reason: `方案「${prev.name}」发布,生成填报单` });
     }
+
+    // 数据范围:按参与主体、分管领导、到人分工补齐共享规则,并对账停用本方案下已不该存在
+    // 的规则(换掉分管领导、撤掉主体、撤掉到人分工)。失败不阻断发布。
+    try {
+      await provisionPlanSharing(api, id, { reconcile: true });
+    } catch (err) {
+      console.error('[kpi] provision plan sharing failed', { plan: id, error: err instanceof Error ? err.message : String(err) });
+    }
   },
 };
 
@@ -212,6 +224,33 @@ export const PlanCloneHook: Hook = {
         if (!target) continue;
         await api.object('kpi_personal_item').insert({ assignment: String(created?.id ?? ''), plan_indicator: target, weight: it.weight ?? 0, target_value: it.target_value ?? null });
       }
+    }
+  },
+};
+
+/**
+ * 方案关闭 / 归档后把数据范围降为只读(留读、去写)。
+ *
+ * 分管领导与填报人员仍要查得到历史方案的填报单与结果,但不应再改;快照与已通过的填报单
+ * 本来就被 hook 锁死,这里是同一条纪律在数据范围上的延续。
+ */
+export const PlanFreezeSharingHook: Hook = {
+  name: 'kpi_plan_freeze_sharing',
+  label: '方案结束后数据范围降为只读',
+  object: 'kpi_plan',
+  events: ['afterUpdate'],
+  priority: 90,
+  handler: async (ctx: HookContext) => {
+    const input = (ctx.input ?? {}) as Record<string, any>;
+    const prev = (ctx.previous ?? {}) as Record<string, any>;
+    if (!('status' in input) || input.status === prev.status) return;
+    if (input.status !== 'closed' && input.status !== 'archived') return;
+    const id = recordId(ctx);
+    if (!id) return;
+    try {
+      await provisionPlanSharing(sys(ctx), id, { reconcile: true });
+    } catch (err) {
+      console.error('[kpi] downgrade plan sharing failed', { plan: id, error: err instanceof Error ? err.message : String(err) });
     }
   },
 };

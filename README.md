@@ -29,6 +29,13 @@ pnpm dev             # http://localhost:3000 ;Console: /_console/ ;管理员 adm
 1 个草稿方案(4 节点流程、5 个参与主体、18 条指标下达)。用户不能种子,请在 Setup 中创建
 用户、加入组织单元并分配岗位。
 
+> ⚠️ 演示夹具的租户对齐(临时):种子写入的组织单元 `organization_id` 为空,而管理员在
+> Setup 里新建的单元会被引擎盖上当前组织;共享规则的收件方展开对这一列做等值比较,所以
+> 只有种子单元展开不出人。`src/data/align-demo-units.ts` 在 `kernel:bootstrapped` 时把这几个
+> 种子单元(且仅这几个 id、且仅 `organization_id` 为空的行、且仅 dev / test)补成与 Setup 新建
+> 单元一致。这是 objectstack-ai/objectstack#14547 的临时夹具修补,平台修复落地后请连同
+> `objectstack.config.ts` 里的调用一起删除。
+
 ## 角色与岗位
 
 | 需求角色 | 岗位(position) | 权限集 | 数据范围 |
@@ -36,12 +43,19 @@ pnpm dev             # http://localhost:3000 ;Console: /_console/ ;管理员 adm
 | 系统管理员 | `kpi_admin`(组织 owner/admin 自动等同) | `kpi_admin_set` | 全部 |
 | 人力审核 | `kpi_hr_reviewer` | `kpi_hr_reviewer_set` | 全部 |
 | 人力负责人 | `kpi_hr_head` | `kpi_hr_head_set` | 全部 |
-| 部门填报人员 | `kpi_dept_reporter` | `kpi_dept_reporter_set` | 本部门(private + 按主体共享规则) |
-| 分公司核对人员 | `kpi_branch_checker` | `kpi_branch_checker_set` | 本分公司核对任务 |
-| 分管领导 | `kpi_exec_leader` | `kpi_exec_leader_set` | 开源版按全部放行;企业版切 `unit_and_below` |
+| 部门填报人员 | `kpi_dept_reporter` | `kpi_dept_reporter_set` | 本部门(private + 动态记录共享) |
+| 分公司核对人员 | `kpi_branch_checker` | `kpi_branch_checker_set` | 本分公司核对任务(private + 动态记录共享) |
+| 分管领导 | `kpi_exec_leader` | `kpi_exec_leader_set` | 所分管主体(private + 动态记录共享) |
 
-「本部门 / 分管」深度依赖平台企业版 `hierarchy-security`;开源版用 `src/security/sharing-rules.ts`
-的按组织单元共享规则表达本部门可见,实施时按真实组织追加单元 id。
+「本部门 / 本分公司 / 分管范围」不依赖平台企业版 `hierarchy-security` 的 `unit / unit_and_below`
+深度:填报单、核对任务、数据调整、考核结果的 OWD 都是 private,可见性由方案发布时按
+「参与主体」「分管领导」「到人分工」写入的**共享规则数据**(`src/services/sharing-service.ts`)
+放宽。接入新客户组织只改数据,不改元数据。
+
+规则**按方案**建:条件里带方案 id,规则名按方案加前缀,发布时对本方案做一次对账 ——
+换掉分管领导、撤掉参与主体、撤掉到人分工,旧授权当场失效,而历史方案的授权原样保留。
+方案**已关闭 / 已归档**后转为「留读、去写」:填报单、核对任务、数据调整由可编辑降为只读
+(还要查得到历史,但不该再改),考核结果本就只读。
 
 ## 业务流程(默认 4 节点,可按方案配置)
 

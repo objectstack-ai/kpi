@@ -106,4 +106,10 @@ const planIndicators = defineSeed(PlanIndicator, {
   ],
 });
 
+/**
+ * 演示组织单元的 id 清单 —— 从上面的种子记录派生,不另抄一份(抄一份就会漂)。
+ * 只有这些 id 才是本应用的演示夹具;管理员在 Setup 里建的单元不在其中。
+ */
+export const DEMO_UNIT_IDS: readonly string[] = orgUnits.records.map((r) => String(r.id));
+
 export const KpiSeedData = [orgUnits, indicators, indicatorSteps, plans, planSteps, planSubjects, planIndicators];

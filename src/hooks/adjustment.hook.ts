@@ -1,6 +1,7 @@
 import type { Hook, HookContext } from '@objectstack/spec/data';
 import { actorId, fail, findById, hasPosition, isSystem, merged, nowIso, recordId, sys, toNumber, writeReview } from './util.js';
 import { regenerateResults } from '../services/results-service.js';
+import { provisionPlanSharing } from '../services/sharing-service.js';
 
 /** 数据调整申请:插入时记录调整前值;审批时盖章;批准后落地到明细并重算。 */
 export const AdjustmentHook: Hook = {
@@ -27,6 +28,7 @@ export const AdjustmentHook: Hook = {
 
     if (ctx.event === 'beforeInsert') {
       input.sheet = line.sheet;
+      input.plan = sheet?.plan ?? null;
       input.subject = sheet?.subject ?? null;
       input.old_value = row.adjust_type === 'result' ? toNumber(line.final_score) : toNumber(line.actual_value);
       if (!input.requested_by) input.requested_by = actorId(ctx);
@@ -64,7 +66,16 @@ export const AdjustmentHook: Hook = {
         actor: actorId(ctx),
         reason: `「${line.indicator_name ?? line.id}」${row.adjust_type === 'result' ? '得分' : '实际值'} ${row.old_value ?? '空'} → ${newValue};原因:${row.reason ?? ''}`,
       });
-      if (sheet && (sheet.status === 'approved')) await regenerateResults(api, String(sheet.plan));
+      if (sheet && (sheet.status === 'approved')) {
+        // 重算与共享重声明都不阻断审批:审批本身已经成立,两者都可在下次通过 / 调整 / 归档
+        // 时补上。这与 SheetAfterTransitionHook、BonusAfterDecideHook 的处置保持一致。
+        try {
+          await regenerateResults(api, String(sheet.plan));
+          await provisionPlanSharing(api, String(sheet.plan), { objects: ['kpi_result'] });
+        } catch (err) {
+          console.error('[kpi] regenerate results / reassert sharing after adjustment failed', { sheet: sheet.id, error: err instanceof Error ? err.message : String(err) });
+        }
+      }
     }
   },
 };

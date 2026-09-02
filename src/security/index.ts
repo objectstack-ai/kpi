@@ -71,7 +71,7 @@ export const DeptReporterPermissionSet = definePermissionSet({
     kpi_plan: readOrg, kpi_plan_step: readOrg, kpi_plan_subject: readOrg, kpi_plan_indicator: readOrg,
     kpi_dispute: { allowRead: true, allowCreate: true, allowEdit: false, allowDelete: false, readScope: 'org', writeScope: 'own' },
     kpi_staff_assignment: { allowRead: true, readScope: 'org' }, kpi_personal_item: { allowRead: true, readScope: 'org' },
-    // 填报单 OWD 为 private:本部门可见性由「按主体共享规则」(sharing-rules.ts)从 own 放宽到本单元
+    // 填报单 OWD 为 private:本部门可见性由方案发布时写入的动态共享规则(services/sharing-service.ts)从 own 放宽到本单元
     kpi_entry_sheet: { allowRead: true, allowCreate: false, allowEdit: true, allowDelete: false, allowExport: true, readScope: 'own', writeScope: 'own' },
     kpi_entry_line: { allowRead: true, allowCreate: true, allowEdit: true, allowDelete: true, allowExport: true, readScope: 'own', writeScope: 'own' },
     kpi_check_task: { allowRead: true, readScope: 'own' },
@@ -85,9 +85,13 @@ export const DeptReporterPermissionSet = definePermissionSet({
     'kpi_entry_line.adjusted_score': { readable: true, editable: false },
     'kpi_entry_line.score': { readable: true, editable: false },
   },
-  // 到人结果只看本人(行级安全只收窄)
+  // 到人结果只看本人(行级安全只收窄)。
+  // 谓词必须把「到人」维度和其它维度分开:`person == current_user.id` 一条会把部门 / 分公司
+  // 维度的行一并挡掉 —— 那些行 person 为空,填报人员于是连本部门的结果都看不到。
+  // 共享才是外层闸门(结果对象 OWD 为 private,只有本单元的结果行被共享规则放行),
+  // 行级安全只在其上再收窄一层:非到人维度照常,到人维度只留本人。
   rowLevelSecurity: [
-    { name: 'kpi_result_own_person', object: 'kpi_result', operation: 'select', using: 'person == current_user.id', positions: ['kpi_dept_reporter'], enabled: true },
+    { name: 'kpi_result_own_person', object: 'kpi_result', operation: 'select', using: "dimension != 'person' || person == current_user.id", positions: ['kpi_dept_reporter'], enabled: true },
   ],
 });
 
@@ -100,7 +104,7 @@ export const BranchCheckerPermissionSet = definePermissionSet({
     kpi_dispute: { allowRead: true, allowCreate: true, allowEdit: false, allowDelete: false, readScope: 'org', writeScope: 'own' },
     kpi_entry_sheet: { allowRead: true, allowExport: true, readScope: 'org' },
     kpi_entry_line: { allowRead: true, allowExport: true, readScope: 'org' },
-    // 核对任务 OWD 为 private:本分公司可见性由「按分公司共享规则」放宽
+    // 核对任务 OWD 为 private:本分公司可见性由方案发布时写入的动态共享规则放宽
     kpi_check_task: { allowRead: true, allowCreate: false, allowEdit: true, allowDelete: false, readScope: 'own', writeScope: 'own' },
     kpi_review_record: { allowRead: true, readScope: 'org' },
     kpi_result: { allowRead: true, readScope: 'own' }, kpi_snapshot: { allowRead: true, readScope: 'org' },
@@ -108,23 +112,23 @@ export const BranchCheckerPermissionSet = definePermissionSet({
   },
 });
 
-/** 分管范围:分管领导 —— 所辖组织及其下级的结果查看与最终审批。 */
+/** 分管范围:分管领导 —— 所分管主体的填报单与结果查看、最终审批。 */
 export const ExecLeaderPermissionSet = definePermissionSet({
   name: 'kpi_exec_leader_set',
   label: 'KPI 分管领导',
   objects: {
     kpi_indicator: readOrg, kpi_plan: readOrg, kpi_plan_subject: readOrg, kpi_plan_indicator: readOrg,
-    // ⚠ 「分管范围」= 平台 unit_and_below 深度,属企业版 hierarchy-security 能力(开源版不可用,
-    // 会退化为仅本人)。开源版按 org 放行读取,审批动作仍由 hook 按流程节点岗位把关;
-    // 切企业版时把下面的 readScope/writeScope 改为 'unit_and_below' 并声明 requires: ['hierarchy-security']。
-    kpi_entry_sheet: { allowRead: true, allowEdit: true, allowExport: true, readScope: 'org', writeScope: 'org' },
-    kpi_entry_line: { allowRead: true, allowExport: true, readScope: 'org' },
-    kpi_check_task: { allowRead: true, readScope: 'org' },
+    // 「分管范围」= 方案「参与主体」上配置的分管领导,由 services/sharing-service.ts 在方案发布时
+    // 写成共享规则(记录级放宽),不依赖企业版 hierarchy-security 的 unit / unit_and_below 深度。
+    // 因此这里一律声明最窄的 own:能看到什么完全由记录共享决定,组织变化零元数据改动。
+    kpi_entry_sheet: { allowRead: true, allowEdit: true, allowExport: true, readScope: 'own', writeScope: 'own' },
+    kpi_entry_line: { allowRead: true, allowExport: true, readScope: 'own' },
+    kpi_check_task: { allowRead: true, readScope: 'own' },
     kpi_review_record: { allowRead: true, readScope: 'org' },
-    kpi_bonus: { allowRead: true, readScope: 'org' },
-    kpi_adjustment: { allowRead: true, readScope: 'org' },
-    kpi_result: { allowRead: true, allowExport: true, readScope: 'org' },
-    kpi_snapshot: { allowRead: true, readScope: 'org' },
+    kpi_bonus: { allowRead: true, readScope: 'own' },
+    kpi_adjustment: { allowRead: true, readScope: 'own' },
+    kpi_result: { allowRead: true, allowExport: true, readScope: 'own' },
+    kpi_snapshot: { allowRead: true, readScope: 'own' },
     ...PLATFORM_READ,
   },
 });
