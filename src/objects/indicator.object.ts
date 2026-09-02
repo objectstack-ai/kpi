@@ -31,7 +31,7 @@ export const Indicator = ObjectSchema.create({
         { label: '其他', value: 'other', color: '#64748B' },
       ],
     }),
-    owner_unit: Field.lookup('sys_business_unit', { label: '责任板块(考核部门)', required: true }),
+    owner_unit: Field.lookup('sys_business_unit', { label: '部门板块', required: true }),
     data_source: Field.select({
       label: '数据来源',
       required: true,
