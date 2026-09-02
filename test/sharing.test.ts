@@ -88,6 +88,33 @@ describe('按方案配置推导数据范围规则', () => {
     expect(intents.find((i) => i.recipientId === 'usr_XYZ-789')?.anchorUnit).toBe('bu_market');
   });
 
+  it('人力岗位:本方案全部填报单与数据调整可编辑,收件方是岗位本身', () => {
+    for (const position of ['kpi_hr_reviewer', 'kpi_hr_head']) {
+      expect(byName.get(`${P}sheet_pos_${position}`)).toMatchObject({
+        object: 'kpi_entry_sheet', criteria: { plan: PLAN }, recipientType: 'position', recipientId: position, accessLevel: 'edit',
+      });
+      expect(byName.get(`${P}adjust_pos_${position}`)).toMatchObject({
+        object: 'kpi_adjustment', criteria: { plan: PLAN }, recipientType: 'position', recipientId: position, accessLevel: 'edit',
+      });
+    }
+    // 条件只带方案(全方案范围),但绝不是 match-all —— 平台拒绝空条件的规则
+    expect(Object.keys(byName.get(`${P}sheet_pos_kpi_hr_reviewer`)!.criteria)).toEqual(['plan']);
+    // 加减分是填报单的主从子记录,记录级判定看主记录,所以不另建规则
+    expect(intents.some((i) => i.object === 'kpi_bonus')).toBe(false);
+  });
+
+  it('人力岗位规则锚在参与主体上 —— 没有主体就没有这两类规则', () => {
+    expect(byName.get(`${P}sheet_pos_kpi_hr_reviewer`)?.anchorUnit).toBe('bu_market');
+    expect(planSharingIntents(PLAN, [], ASSIGNMENTS).some((i) => i.recipientType === 'position')).toBe(false);
+  });
+
+  it('方案关闭后人力岗位也只留读', () => {
+    const closed = planSharingIntents(PLAN, SUBJECTS, ASSIGNMENTS, 'closed');
+    const hr = closed.filter((i) => i.recipientType === 'position');
+    expect(hr).toHaveLength(4);
+    for (const i of hr) expect(i.accessLevel).toBe('read');
+  });
+
   it('空配置不产生任何规则', () => {
     expect(planSharingIntents(PLAN, [], [])).toEqual([]);
   });

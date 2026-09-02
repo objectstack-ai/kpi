@@ -76,7 +76,9 @@ export const DeptReporterPermissionSet = definePermissionSet({
     kpi_entry_line: { allowRead: true, allowCreate: true, allowEdit: true, allowDelete: true, allowExport: true, readScope: 'own', writeScope: 'own' },
     kpi_check_task: { allowRead: true, readScope: 'own' },
     kpi_review_record: { allowRead: true, readScope: 'org' },
-    kpi_bonus: { allowRead: true, allowCreate: true, allowEdit: true, allowDelete: false, readScope: 'own', writeScope: 'own' },
+    // 登记加减分 = 人力审核岗位(《设计方案》V1.0 第 10 章第 6 项);声明与执行一致:
+    // 业务规则已只允许人力审核登记,这里就不再声明新建权限,按钮层面即不可用。
+    kpi_bonus: { allowRead: true, allowCreate: false, allowEdit: true, allowDelete: false, readScope: 'own', writeScope: 'own' },
     kpi_adjustment: { allowRead: true, allowCreate: true, allowEdit: true, allowDelete: false, readScope: 'own', writeScope: 'own' },
     kpi_result: { allowRead: true, readScope: 'own' }, kpi_snapshot: { allowRead: true, readScope: 'org' },
     ...PLATFORM_READ,

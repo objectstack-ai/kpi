@@ -3,6 +3,27 @@ import { actorId, fail, findById, hasPosition, isSystem, merged, nowIso, recordI
 import { regenerateResults } from '../services/results-service.js';
 import { provisionPlanSharing } from '../services/sharing-service.js';
 
+/**
+ * 调整落地时写给填报明细的补丁 —— 纯函数,「已调整」标记口径的唯一真值(单元测试点)。
+ *
+ * 《设计方案》V1.0 第 10 章第 14 项(客户 2026-09-02 选 A):结果调整改某指标的得分并标记
+ * 「已调整」。源数据调整同样标 —— 两种调整都让这一行的数字不再是原始填报值,列表与汇总
+ * 明细都应当看得出来;`adjust_type_applied` 区分标的是哪一种。
+ */
+export function adjustmentLinePatch(
+  adjustType: string | null | undefined,
+  newValue: number,
+  adjustmentId: string | null,
+): Record<string, unknown> {
+  const isResult = adjustType === 'result';
+  return {
+    last_adjustment: adjustmentId,
+    is_adjusted: true,
+    adjust_type_applied: isResult ? 'result' : 'source',
+    ...(isResult ? { adjusted_score: newValue } : { actual_value: newValue }),
+  };
+}
+
 /** 数据调整申请:插入时记录调整前值;审批时盖章;批准后落地到明细并重算。 */
 export const AdjustmentHook: Hook = {
   name: 'kpi_adjustment_rules',
@@ -52,10 +73,7 @@ export const AdjustmentHook: Hook = {
       const newValue = toNumber(row.new_value);
       if (newValue === null) fail('批准调整申请失败:调整后值不能为空。请填写调整后值。', 'KPI_ADJ_VALUE');
       const id = recordId(ctx);
-      const patch: Record<string, unknown> = { last_adjustment: id };
-      if (row.adjust_type === 'result') patch.adjusted_score = newValue;
-      else patch.actual_value = newValue;
-      await api.object('kpi_entry_line').updateById(String(line.id), patch);
+      await api.object('kpi_entry_line').updateById(String(line.id), adjustmentLinePatch(row.adjust_type, newValue, id));
       input.applied_at = nowIso();
       await writeReview(api, {
         sheet: String(line.sheet),

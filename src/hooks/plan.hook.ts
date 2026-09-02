@@ -6,6 +6,68 @@ import { loadPlanSteps } from './sheet.hook.js';
 
 const FROZEN_MESSAGE = '修改失败:方案已发布,配置已冻结。如需调整指标、权重、目标或流程,请新建方案版本。';
 
+/**
+ * 同一考核周期只有一个生效版本(《设计方案》V1.0 第 5.2 节、第 10 章第 10 项)。
+ *
+ * 「同一周期」= `period_type` + `year` + `period_no` 三者相同;「生效版本」只指状态为
+ * **已发布**的方案 —— 已关闭 / 已归档的是历史版本,不阻断新版本发布,草稿本来就还没生效
+ * (草稿与已发布并存正是第 10 项确认的口径)。
+ */
+export const PLAN_PERIOD_CONFLICT_CODE = 'KPI_PLAN_PERIOD_CONFLICT';
+
+export interface PlanPeriodKey {
+  id?: string | null;
+  period_type?: unknown;
+  year?: unknown;
+  period_no?: unknown;
+  name?: unknown;
+  status?: unknown;
+  /** 租户隔离锚点(平台注入的组织归属)。 */
+  organization_id?: unknown;
+}
+
+/** 两条方案是否落在同一个考核周期(期数按数值比较,避免 "1" 与 1 判成不同周期)。 */
+export function samePeriod(a: PlanPeriodKey, b: PlanPeriodKey): boolean {
+  return (
+    String(a.period_type ?? '') === String(b.period_type ?? '') &&
+    toNumber(a.year) === toNumber(b.year) &&
+    toNumber(a.period_no) === toNumber(b.period_no)
+  );
+}
+
+/**
+ * 两条方案是否属于同一租户。
+ *
+ * 只在**两边都带**组织归属时才比较:带了就必须相等(多租户下别家的方案挡不住本家的发布);
+ * 有一边没有(单租户部署、或调用方没把该列读出来)就退回只按周期判定 —— 宁可多挡一次让人
+ * 看见,也不因为缺一个字段而**静默**放行一个本该被拒的发布。
+ */
+function sameTenant(a: PlanPeriodKey, b: PlanPeriodKey): boolean {
+  const x = a.organization_id ? String(a.organization_id) : '';
+  const y = b.organization_id ? String(b.organization_id) : '';
+  if (!x || !y) return true;
+  return x === y;
+}
+
+/**
+ * 在候选方案里找出挡住本次发布的生效版本 —— 纯函数,唯一性口径的唯一真值(单元测试点)。
+ * 候选由调用方按「已发布」+ 本租户筛出;这里再判一次状态与租户,保证口径不依赖调用方的
+ * 查询条件(查询条件是性能优化,判定不能只靠它)。
+ */
+export function findPublishedConflict(candidates: PlanPeriodKey[], self: PlanPeriodKey): PlanPeriodKey | null {
+  for (const c of candidates ?? []) {
+    if (String(c.status ?? '') !== 'published') continue;
+    if (self.id && String(c.id ?? '') === String(self.id)) continue;
+    if (!sameTenant(c, self)) continue;
+    if (samePeriod(c, self)) return c;
+  }
+  return null;
+}
+
+export function planPeriodConflictMessage(name: string): string {
+  return `发布失败:该考核周期已有生效版本「${name}」。请先关闭该版本,或改用复制出的新版本替换。`;
+}
+
 async function assertPlanEditable(ctx: HookContext, planId: string | null | undefined): Promise<void> {
   if (isSystem(ctx) || !planId) return;
   const plan = await findById(sys(ctx), 'kpi_plan', planId);
@@ -111,6 +173,21 @@ export const PlanPublishHook: Hook = {
     // read,结果本就只读)。副作用挂在 after 阶段的 PlanFreezeSharingHook 上,避免主写入被
     // 平台校验拒绝时留下半截改动。
     if (!(prev.status === 'draft' && input.status === 'published')) return;
+
+    // 同周期唯一生效版本:先于完整性检查判定 —— 这一条与方案内部配置无关,先说清楚
+    // 「这个周期已经有生效版本了」比让作者先去补权重更省事。
+    //
+    // 候选只按状态取,**不**把组织放进 `where`:等值条件不匹配 NULL,而种子 / 导入写进来的
+    // 方案行组织就是空的 —— 那样的生效版本会在判定之前就被查询滤掉,同周期唯一性变成
+    // 「看数据从哪来」的漏判。租户判定全部交给 `findPublishedConflict` 里的 `sameTenant`:
+    // 两边都有组织才比较,任一边缺失就退回只按周期判定(缺字段不得变成静默放行)。
+    // 本方案自己的组织从**落库的行**上取,不从 ctx.previous 取 —— 那里未必带这一列。
+    const period = merged<Record<string, any>>(ctx);
+    const self = await findById(api, 'kpi_plan', id);
+    const organizationId = self?.organization_id ? String(self.organization_id) : null;
+    const published = await api.object('kpi_plan').find({ where: { status: 'published' } });
+    const conflict = findPublishedConflict(published as PlanPeriodKey[], { ...period, id, organization_id: organizationId });
+    if (conflict) fail(planPeriodConflictMessage(String(conflict.name ?? '')), PLAN_PERIOD_CONFLICT_CODE);
 
     const problems: string[] = [];
     const steps = await loadPlanSteps(api, id);

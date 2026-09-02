@@ -140,7 +140,7 @@ export const EntrySheetViews = defineView({
   },
 });
 
-const lineCols = cols('sheet', 'indicator_name', 'unit', 'direction', 'scoring_method', 'target_value', 'weight', 'actual_value', 'completion_rate', 'score_rate', 'score', 'adjusted_score', 'final_score', 'remark');
+const lineCols = cols('sheet', 'indicator_name', 'unit', 'direction', 'scoring_method', 'target_value', 'weight', 'actual_value', 'completion_rate', 'score_rate', 'score', 'adjusted_score', 'is_adjusted', 'adjust_type_applied', 'final_score', 'remark');
 export const EntryLineViews = defineView({
   list: { label: '填报明细', type: 'grid', data: obj('kpi_entry_line'), columns: lineCols, inlineEdit: true, exportOptions: XLSX, sort: [{ field: 'indicator_name', order: 'asc' }] },
   listViews: {
@@ -148,7 +148,7 @@ export const EntryLineViews = defineView({
   },
   formViews: { form: { type: 'simple', data: obj('kpi_entry_line'), sections: [
     { name: 'entry', label: '填报', columns: 2, fields: [{ field: 'sheet', required: true }, { field: 'plan_indicator', required: true }, { field: 'indicator_name' }, { field: 'unit' }, { field: 'target_value' }, { field: 'weight' }, { field: 'actual_value' }, { field: 'remark' }] },
-    { name: 'score', label: '计分', columns: 2, fields: [{ field: 'direction' }, { field: 'scoring_method' }, { field: 'completion_rate' }, { field: 'score_rate' }, { field: 'score' }, { field: 'adjusted_score' }, { field: 'final_score' }, { field: 'last_adjustment' }, { field: 'calc_trace' }] },
+    { name: 'score', label: '计分', columns: 2, fields: [{ field: 'direction' }, { field: 'scoring_method' }, { field: 'completion_rate' }, { field: 'score_rate' }, { field: 'score' }, { field: 'adjusted_score' }, { field: 'is_adjusted' }, { field: 'adjust_type_applied' }, { field: 'final_score' }, { field: 'last_adjustment' }, { field: 'calc_trace' }] },
   ] } },
 });
 

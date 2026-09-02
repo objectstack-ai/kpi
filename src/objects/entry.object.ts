@@ -127,6 +127,26 @@ export const EntryLine = ObjectSchema.create({
       deleteBehavior: 'cascade',
       inlineEdit: 'grid',
       inlineTitle: '指标填报',
+      /**
+       * 内嵌网格的列**显式**声明 —— 只为让「已调整 / 调整类型」在填报单里也看得见。
+       *
+       * 显式声明会**整体替换**平台从子对象派生的列集,所以这里必须列全:下面前 17 项 =
+       * 本次之前就有的全部字段,顺序与字段定义一致(= 原派生顺序),新增的两列排在最后。冗长但仍要留在网格里的三列(计算说明、最近调整、指标)用平台
+       * 原生的 `defaultHidden` 折叠 —— 默认不占宽度,列选择器里仍能打开,而不是删掉。
+       *
+       * 每项只写 `name`(身份列):不声明 `type` 时,标签、类型、选项、lookup 目标与联动
+       * 规则都由子对象自己的字段定义补齐,列与字段因此不会各说各话。
+       */
+      inlineColumns: [
+        { name: 'plan_indicator', required: true }, { name: 'indicator', defaultHidden: true },
+        { name: 'indicator_name' }, { name: 'unit' }, { name: 'direction' }, { name: 'scoring_method' },
+        { name: 'target_value' }, { name: 'weight' }, { name: 'actual_value' },
+        { name: 'completion_rate' }, { name: 'score_rate' }, { name: 'score' },
+        { name: 'adjusted_score' }, { name: 'final_score' },
+        { name: 'calc_trace', defaultHidden: true }, { name: 'last_adjustment', defaultHidden: true },
+        { name: 'remark' },
+        { name: 'is_adjusted' }, { name: 'adjust_type_applied' },
+      ],
     }),
     plan_indicator: Field.lookup('kpi_plan_indicator', { label: '来源下达', required: true }),
     indicator: Field.lookup('kpi_indicator', { label: '指标', readonly: true }),
@@ -158,6 +178,18 @@ export const EntryLine = ObjectSchema.create({
     score: Field.number({ label: '指标得分', readonly: true, scale: 2, min: 0, max: 1000 }),
     adjusted_score: Field.number({ label: '调整后得分', readonly: true, scale: 2, min: 0, max: 1000 }),
     final_score: Field.number({ label: '最终得分', readonly: true, scale: 2, min: 0, max: 1000 }),
+    // 「已调整」标记(《设计方案》V1.0 第 10 章第 14 项 = A:改某指标的得分并标记「已调整」)。
+    // 两个字段都由数据调整批准落地时以系统上下文写入,页面上只读:源数据调整与结果调整都标,
+    // 「调整类型」说明标的是哪一种,列表与内嵌网格因此能一眼看出哪一行被调过。
+    is_adjusted: Field.boolean({ label: '已调整', readonly: true, defaultValue: false }),
+    adjust_type_applied: Field.select({
+      label: '调整类型',
+      readonly: true,
+      options: [
+        { label: '源数据(实际值)', value: 'source' },
+        { label: '计算结果(得分)', value: 'result' },
+      ],
+    }),
     calc_trace: Field.textarea({ label: '计算说明', readonly: true }),
     last_adjustment: Field.lookup('kpi_adjustment', { label: '最近调整' }),
     remark: Field.text({ label: '备注', maxLength: 300 }),

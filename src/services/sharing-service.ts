@@ -37,7 +37,7 @@ export interface SharingIntent {
   object: string;
   /** 记录筛选条件(平台 FilterCondition 的 JSON 形态),恒含方案 id。 */
   criteria: Record<string, unknown>;
-  recipientType: 'unit_and_subordinates' | 'user';
+  recipientType: 'unit_and_subordinates' | 'user' | 'position';
   recipientId: string;
   accessLevel: 'read' | 'edit';
   /**
@@ -88,15 +88,43 @@ export function planRulePrefix(planId: string): string {
 /** 旧版本按单元(不带方案)建的规则前缀。它们正是不可回收的那批,发现即停用。 */
 export const LEGACY_RULE_PREFIX = 'kpi_share_';
 
+/** 人力岗位:哪两个岗位拿本方案的写范围(详见 {@link planSharingIntents} 的说明)。 */
+const HR_POSITION_RULES: ReadonlyArray<{ position: string; label: string }> = [
+  { position: 'kpi_hr_reviewer', label: '人力审核' },
+  { position: 'kpi_hr_head', label: '人力负责人' },
+];
+
+/** 人力岗位规则挂在哪些对象上(填报单 = 审核与加减分;数据调整 = 调整审批)。 */
+const HR_POSITION_OBJECTS: ReadonlyArray<{ key: string; object: string; label: string }> = [
+  { key: 'sheet', object: 'kpi_entry_sheet', label: '填报单' },
+  { key: 'adjust', object: 'kpi_adjustment', label: '数据调整' },
+];
+
 /**
  * 由方案配置推导出本方案需要的全部共享规则(纯函数,便于单元测试)。
  *
  * - 考核主体单元:填报单 / 核对任务 / 数据调整可编辑,本单元结果只读;
+ * - 人力岗位(人力审核 / 人力负责人):本方案**全部**填报单与数据调整可编辑;
  * - 分管领导:所分管主体的填报单可编辑(领导审批节点要能改状态)、所分管主体的结果只读、
  *   本人结果(分管领导维度)只读;
  * - 被考核员工:本人到人结果只读。
  *
  * 方案已关闭 / 已归档时,可编辑的三类降为只读。
+ *
+ * ## 人力岗位的记录级写范围(调度员 2026-09-02 裁定,选项 A)
+ *
+ * 人力审核要在填报单下**登记加减分**、在人力审核节点**审核通过 / 驳回**,人力负责人要
+ * **审批加减分与数据调整** —— 这些都是对填报单及其子记录的写。填报单 OWD 是 private,
+ * 权限集里的 org 范围只放开读,写仍要过记录级判定,所以两个岗位**必须**拿到记录共享,
+ * 否则确认口径(第 10 章第 6 项)在真实岗位账号下根本执行不了。
+ *
+ * 收件方直接用平台的 `position` 类型(ADR-0090 D3:岗位是扁平收件方,规则求值器
+ * `expandRecipient` 把它展开成该岗位的全部持有人),不需要「持有该岗位的用户」这类等价
+ * 表达。范围与其它三类规则同一套机制:条件带方案 id、规则名带方案前缀、发布时对账、
+ * 方案已关闭 / 已归档后由 `edit` 降为 `read`。
+ *
+ * 加减分(`kpi_bonus`)不需要自己的规则:它是填报单的主从子记录(`controlled_by_parent`),
+ * 记录级判定看的是主记录 —— 拿到填报单的 edit,插入 / 修改子记录就成立。
  */
 export function planSharingIntents(
   planId: string,
@@ -204,6 +232,28 @@ export function planSharingIntents(
       accessLevel: 'read',
       anchorUnit: unit,
     });
+  }
+
+  // 人力岗位:本方案全部填报单与数据调整可编辑。规则要有组织归属才展开得出人,而组织归属
+  // 取自锚定的组织单元行 —— 这里锚在第一个参与主体上(同一方案的主体在同一组织内);没有
+  // 参与主体的方案发布不了,也就不需要这两类规则。
+  const anchor = subjects.map((s) => String(s.subject ?? '')).find((u) => !!u) ?? '';
+  if (anchor) {
+    for (const { position, label } of HR_POSITION_RULES) {
+      for (const { key, object, label: objectLabel } of HR_POSITION_OBJECTS) {
+        push({
+          name: `${prefix}${key}_pos_${position}`,
+          label: `${objectLabel}共享给${label}岗位${suffix}`,
+          description: `人力岗位(${label})`,
+          object,
+          criteria: { plan: planId },
+          recipientType: 'position',
+          recipientId: position,
+          accessLevel: writable,
+          anchorUnit: anchor,
+        });
+      }
+    }
   }
 
   for (const a of assignments) {
