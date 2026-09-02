@@ -510,6 +510,16 @@ const writeAfterClose = await post('kpi_bonus', { sheet: market5.id, title: '关
 asAdmin();
 log('T70', '方案关闭后人力岗位对该方案填报单降为只读(留读、去写)', hrRulesClosed.length === 4 && hrRulesClosed.every((x) => x.access_level === 'read') && readAfterClose.status === 200 && writeAfterClose.status >= 400, `岗位规则 ${hrRulesClosed.length} 条全部 read=${hrRulesClosed.every((x) => x.access_level === 'read')} read=${readAfterClose.status} write=${writeAfterClose.status}`);
 
+
+// 组织为空的已发布方案(种子 / 导入写进来的行)同样是生效版本 —— 候选不按组织过滤,
+// 否则这类行会在判定之前被查询滤掉,同周期唯一性变成「看数据从哪来」的漏判。
+const seedPlan = await get('kpi_plan', plan.id);
+r = await post('kpi_plan', { name: '2026 年 8 月 月度考核(重复周期)', period_type: 'month', year: 2026, period_no: 8, period_start: '2026-08-01', period_end: '2026-08-31', based_on: plan.id });
+const planDup8 = one(r);
+const dup8 = await patch('kpi_plan', planDup8.id, { status: 'published' });
+const planDup8Row = await get('kpi_plan', planDup8.id);
+log('T71', '组织为空的已发布方案仍阻断同周期发布(租户判定不靠查询过滤)', !seedPlan.organization_id && seedPlan.status === 'published' && dup8.status >= 400 && msg(dup8).includes('该考核周期已有生效版本「2026 年 8 月 月度考核」') && planDup8Row.status === 'draft', `seed_org=${seedPlan.organization_id ?? 'null'} seed_status=${seedPlan.status} dup=${dup8.status} ${msg(dup8).slice(0, 150)}`);
+
 const summary = { passed: results.filter((x) => x.ok).length, failed: results.filter((x) => !x.ok).length };
 console.log(JSON.stringify(summary));
 import('node:fs').then((fs) => fs.writeFileSync(process.argv[2] ?? '/dev/null', JSON.stringify(results, null, 2)));

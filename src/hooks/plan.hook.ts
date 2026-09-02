@@ -177,15 +177,15 @@ export const PlanPublishHook: Hook = {
     // 同周期唯一生效版本:先于完整性检查判定 —— 这一条与方案内部配置无关,先说清楚
     // 「这个周期已经有生效版本了」比让作者先去补权重更省事。
     //
-    // 查询走系统上下文(要看到本租户里当前用户未必可见的方案),所以租户隔离得自己带上:
-    // 组织归属从**落库的方案行**上取,不从 ctx.previous 取 —— 那里未必带这一列。与
-    // services/sharing-service.ts 的做法一致:组织是等值条件,不做宽松匹配。
+    // 候选只按状态取,**不**把组织放进 `where`:等值条件不匹配 NULL,而种子 / 导入写进来的
+    // 方案行组织就是空的 —— 那样的生效版本会在判定之前就被查询滤掉,同周期唯一性变成
+    // 「看数据从哪来」的漏判。租户判定全部交给 `findPublishedConflict` 里的 `sameTenant`:
+    // 两边都有组织才比较,任一边缺失就退回只按周期判定(缺字段不得变成静默放行)。
+    // 本方案自己的组织从**落库的行**上取,不从 ctx.previous 取 —— 那里未必带这一列。
     const period = merged<Record<string, any>>(ctx);
     const self = await findById(api, 'kpi_plan', id);
     const organizationId = self?.organization_id ? String(self.organization_id) : null;
-    const where: Record<string, unknown> = { status: 'published' };
-    if (organizationId) where.organization_id = organizationId;
-    const published = await api.object('kpi_plan').find({ where });
+    const published = await api.object('kpi_plan').find({ where: { status: 'published' } });
     const conflict = findPublishedConflict(published as PlanPeriodKey[], { ...period, id, organization_id: organizationId });
     if (conflict) fail(planPeriodConflictMessage(String(conflict.name ?? '')), PLAN_PERIOD_CONFLICT_CODE);
 

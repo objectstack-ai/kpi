@@ -54,7 +54,9 @@ describe('同周期唯一生效版本(第 10 章第 10 项 / 设计 5.2)', () =>
     expect(findPublishedConflict([{ ...live, organization_id: 'org_a' }], mine)?.id).toBe('p_live');
     // 有一边读不出组织时退回只按周期判定 —— 缺字段不能变成静默放行
     expect(findPublishedConflict([{ ...live, organization_id: 'org_b' }], draft)?.id).toBe('p_live');
+    // 种子 / 导入写进来的方案行组织为空,它依然是生效版本(候选不按组织过滤,判定才看得到它)
     expect(findPublishedConflict([live], mine)?.id).toBe('p_live');
+    expect(findPublishedConflict([{ ...live, organization_id: null }], mine)?.id).toBe('p_live');
   });
 
   it('已关闭 / 已归档不是生效版本,不阻断发布;草稿同样不阻断;自己不挡自己', () => {
