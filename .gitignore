@@ -5,3 +5,6 @@ dist
 .DS_Store
 .env
 .env.*
+
+# 截图与证据不进代码树:挂在工作项评论或孤儿分支 acceptance-evidence
+docs/evidence/
