@@ -227,6 +227,18 @@ describe('规则名长度上界(平台 sys_sharing_rule.name 最长 100)', () =>
     expect(Math.max(...names.map((n) => n.length))).toBe(99);
   });
 
+  it('修复前真正越界的形态:三段都是 32 位合规 id(旧代码原样保留,拼出 117)', () => {
+    // 32 位是旧代码「原样保留」的上限,也正是它唯一会越过 100 的入口 —— 更长的 id 旧代码
+    // 反而会折短。这条用例盯的就是那个入口,越界的算术在这里写死:5 + 32 + 1 + 14 + 32 + 1 + 32。
+    const plan = 'p'.repeat(32);
+    const unit = 'u'.repeat(32);
+    const leader = 'l'.repeat(32);
+    expect(5 + plan.length + 1 + 'result_leader_'.length + unit.length + 1 + leader.length).toBe(117);
+    const names = planSharingIntents(plan, [{ subject: unit, name: '单元', leader }], []).map((i) => i.name);
+    expect(names.some((n) => n.includes('result_leader_'))).toBe(true);
+    for (const name of names) expect(name.length).toBeLessThanOrEqual(RULE_NAME_MAX);
+  });
+
   it('片段上界之内的 id 原样保留 —— 已写入的规则名不因本次改动而改名', () => {
     expect(ruleSlug('bu_market')).toBe('bu_market');
     expect(ruleSlug('a'.repeat(RULE_SLUG_MAX))).toBe('a'.repeat(RULE_SLUG_MAX));
