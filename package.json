@@ -1,0 +1,38 @@
+{
+  "name": "@objectstack-ai/kpi",
+  "version": "0.1.0",
+  "description": "KPI assessment management system built on the ObjectStack platform.",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "pnpm": ">=10.15",
+    "node": ">=22"
+  },
+  "main": "./objectstack.config.ts",
+  "types": "./objectstack.config.ts",
+  "scripts": {
+    "dev": "objectstack dev",
+    "start": "objectstack start",
+    "build": "objectstack build",
+    "validate": "objectstack validate",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "verify": "pnpm validate && pnpm typecheck && pnpm test",
+    "e2e": "node scripts/e2e-flow.mjs"
+  },
+  "dependencies": {
+    "@objectstack/connector-mcp": "^17.2.0",
+    "@objectstack/connector-openapi": "^17.2.0",
+    "@objectstack/connector-rest": "^17.2.0",
+    "@objectstack/formula": "^17.2.0",
+    "@objectstack/plugin-hono-server": "^17.2.0",
+    "@objectstack/runtime": "^17.2.0",
+    "@objectstack/spec": "^17.2.0"
+  },
+  "devDependencies": {
+    "@objectstack/cli": "^17.2.0",
+    "typescript": "^6.0.0",
+    "vitest": "^4.1.10"
+  }
+}

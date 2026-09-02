@@ -1,0 +1,76 @@
+# KPI 考核管理系统(ObjectStack 应用)
+
+面向多部门、多分公司的 KPI 考核管理,覆盖「指标库 → 方案配置 → 指标下达 → 数据填报 →
+并行核对 → 审核流程 → 实时计分 → 数据调整 → 汇总 → 归档快照」全流程。基于
+[ObjectStack](https://github.com/objectstack-ai/objectstack) 17.x 元数据平台开发,
+按 `os-project-*` 交付流程 skill 设计与实现。
+
+## 文档
+
+| 文档 | 内容 |
+|---|---|
+| [docs/01-需求解读报告.md](docs/01-需求解读报告.md) | 场景地图、平台能力覆盖度、风险、疑点(待客户拍板) |
+| [docs/02-总体方案蓝图.md](docs/02-总体方案蓝图.md) | os 能力映射、对象模型总图、模块依赖与开发顺序 |
+| [docs/03-方案分级.md](docs/03-方案分级.md) | 三问分级;三处多路径选型(组织主体 / 计分引擎 / 审核状态机)待放行 |
+| [docs/04-需求符合度清单.md](docs/04-需求符合度清单.md) | 需求逐条 ✅/⚠️/❌ 对账 |
+| [docs/05-自测记录.md](docs/05-自测记录.md) | 静态门禁 + 端到端流程用例(38 条)结果与问题记录 |
+| [CLAUDE.md](CLAUDE.md) | 开发约定与 dev-issue 启用清单 |
+
+## 快速开始
+
+```bash
+pnpm install
+pnpm verify          # validate + typecheck + vitest
+pnpm e2e             # 对运行中的 dev 实例(空库、端口 3100)经 REST 走完整考核链路
+pnpm dev             # http://localhost:3000 ;Console: /_console/ ;管理员 admin@objectos.ai / admin123
+```
+
+开发环境自动加载演示种子:组织树(总公司、3 个部门、4 家分公司)、6 个指标(含阶梯区间)、
+1 个草稿方案(4 节点流程、5 个参与主体、18 条指标下达)。用户不能种子,请在 Setup 中创建
+用户、加入组织单元并分配岗位。
+
+## 角色与岗位
+
+| 需求角色 | 岗位(position) | 权限集 | 数据范围 |
+|---|---|---|---|
+| 系统管理员 | `kpi_admin`(组织 owner/admin 自动等同) | `kpi_admin_set` | 全部 |
+| 人力审核 | `kpi_hr_reviewer` | `kpi_hr_reviewer_set` | 全部 |
+| 人力负责人 | `kpi_hr_head` | `kpi_hr_head_set` | 全部 |
+| 部门填报人员 | `kpi_dept_reporter` | `kpi_dept_reporter_set` | 本部门(private + 按主体共享规则) |
+| 分公司核对人员 | `kpi_branch_checker` | `kpi_branch_checker_set` | 本分公司核对任务 |
+| 分管领导 | `kpi_exec_leader` | `kpi_exec_leader_set` | 开源版按全部放行;企业版切 `unit_and_below` |
+
+「本部门 / 分管」深度依赖平台企业版 `hierarchy-security`;开源版用 `src/security/sharing-rules.ts`
+的按组织单元共享规则表达本部门可见,实施时按真实组织追加单元 id。
+
+## 业务流程(默认 4 节点,可按方案配置)
+
+```
+方案草稿 ─发布(完整性检查)─▶ 生成填报单/明细(冻结目标、权重、计分规则副本)
+填报中 ─提交─▶ 分公司核对中(并行核对任务,全部确认自动推进)─▶ 人力审核中 ─▶ 领导审批中 ─▶ 已通过 ─归档─▶ 已归档(不可变快照)
+任一审核节点 ─驳回(原因必填)─▶ 上一节点
+```
+
+- 计分引擎:`src/lib/scoring.ts`(线性 / 阶梯 / 区间插值 / CEL 公式),填报保存即算分,计算说明落库可复核;
+- 审核状态机:`src/lib/workflow.ts` + `src/hooks/sheet.hook.ts`,按钮只写「待执行动作」,规则全在 hook;
+- 汇总:`src/lib/aggregate.ts`,通过 / 归档 / 调整落地时重算部门、分公司、到人、分管领导四维结果;
+- 留痕:`kpi_review_record` 只增不改 + 平台审计日志;归档快照 `kpi_snapshot` 带 SHA-256 校验和。
+
+## 目录
+
+```
+objectstack.config.ts   应用装配(对象、视图、按钮、hook、权限、共享规则、看板、报表、种子)
+src/objects             17 个业务对象
+src/hooks               计分、流程、发布、争议、加减分、调整、不可变保护
+src/lib                 纯函数:计分 / 状态机 / 汇总 / CEL 求值(有单元测试)
+src/services            计分装配、结果汇总、快照生成
+src/security            岗位、权限集、共享规则、岗位绑定
+src/views | actions | apps | pages | datasets | dashboards | reports | translations | data
+test                    vitest 单元测试
+scripts/e2e-flow.mjs    端到端流程验证(REST)
+docs                    设计与验收文档
+```
+
+## 许可
+
+Apache-2.0
