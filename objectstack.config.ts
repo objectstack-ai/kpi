@@ -12,6 +12,7 @@ import { allPermissionSets, allPositions } from './src/security/index.js';
 import { registerKpiPositionBindings } from './src/security/bind-position-sets.js';
 import { KpiTranslationBundle } from './src/translations/index.js';
 import { KpiSeedData } from './src/data/index.js';
+import { registerDemoUnitAlignment } from './src/data/align-demo-units.js';
 
 /**
  * KPI 考核管理系统 — 基于 ObjectStack 的独立应用。
@@ -54,4 +55,6 @@ export default defineStack({
 /** 岗位↔权限集绑定在安全引导完成后幂等补齐(不能用种子,见 bind-position-sets.ts)。 */
 export const onEnable = async (ctx: unknown): Promise<void> => {
   registerKpiPositionBindings(ctx as Parameters<typeof registerKpiPositionBindings>[0]);
+  // 演示夹具的租户对齐 —— 临时,随 objectstack-ai/objectstack#14547 的平台修复一起删除。
+  registerDemoUnitAlignment(ctx as Parameters<typeof registerDemoUnitAlignment>[0]);
 };

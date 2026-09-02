@@ -29,6 +29,13 @@ pnpm dev             # http://localhost:3000 ;Console: /_console/ ;管理员 adm
 1 个草稿方案(4 节点流程、5 个参与主体、18 条指标下达)。用户不能种子,请在 Setup 中创建
 用户、加入组织单元并分配岗位。
 
+> ⚠️ 演示夹具的租户对齐(临时):种子写入的组织单元 `organization_id` 为空,而管理员在
+> Setup 里新建的单元会被引擎盖上当前组织;共享规则的收件方展开对这一列做等值比较,所以
+> 只有种子单元展开不出人。`src/data/align-demo-units.ts` 在 `kernel:bootstrapped` 时把这几个
+> 种子单元(且仅这几个 id、且仅 `organization_id` 为空的行、且仅 dev / test)补成与 Setup 新建
+> 单元一致。这是 objectstack-ai/objectstack#14547 的临时夹具修补,平台修复落地后请连同
+> `objectstack.config.ts` 里的调用一起删除。
+
 ## 角色与岗位
 
 | 需求角色 | 岗位(position) | 权限集 | 数据范围 |

@@ -1,6 +1,7 @@
 import type { Hook, HookContext } from '@objectstack/spec/data';
 import { actorId, fail, findById, hasPosition, isSystem, merged, nowIso, sys, toNumber } from './util.js';
 import { regenerateResults } from '../services/results-service.js';
+import { provisionPlanSharing } from '../services/sharing-service.js';
 
 /** 加减分:计入分值带符号;审批盖章需人力岗位;归档后锁定。 */
 export const BonusHook: Hook = {
@@ -66,6 +67,7 @@ export const BonusAfterDecideHook: Hook = {
     if (!sheet || (sheet.status !== 'approved' && sheet.status !== 'archived')) return;
     try {
       await regenerateResults(api, String(sheet.plan));
+      await provisionPlanSharing(api, String(sheet.plan), { objects: ['kpi_result'] });
     } catch (err) {
       console.error('[kpi] regenerate results after bonus decision failed', { sheet: sheet.id, error: err instanceof Error ? err.message : String(err) });
     }

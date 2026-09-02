@@ -2,6 +2,7 @@ import type { Hook, HookContext } from '@objectstack/spec/data';
 import { actorId, fail, findById, hasPosition, isSystem, merged, nowIso, recordId, sys, writeReview } from './util.js';
 import { requiredPositionFor, STATUS_LABEL, transition, type PlanStepDef, type SheetAction, type SheetStatus } from '../lib/workflow.js';
 import { regenerateResults } from '../services/results-service.js';
+import { provisionPlanSharing } from '../services/sharing-service.js';
 import { createSnapshot } from '../services/snapshot-service.js';
 
 export async function loadPlanSteps(api: ReturnType<typeof sys>, planId: string): Promise<PlanStepDef[]> {
@@ -183,6 +184,19 @@ export const SheetAfterTransitionHook: Hook = {
       } catch (err) {
         // 汇总失败不回滚流程:结果可在下次通过 / 归档 / 调整落地时重算;错误进服务端日志
         console.error('[kpi] regenerate results failed', { plan: now.plan ?? prev.plan, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+
+    // 本 hook 新建的记录(核对任务、结果)都是系统上下文写入,平台不会在写入时物化记录共享;
+    // 重新声明相关规则让求值器补齐(见 services/sharing-service.ts 的 ensureRule)。
+    const touched: string[] = [];
+    if (toStatus === 'branch_checking') touched.push('kpi_check_task');
+    if (toStatus === 'approved' || toStatus === 'archived') touched.push('kpi_result');
+    if (touched.length) {
+      try {
+        await provisionPlanSharing(api, String(now.plan ?? prev.plan), { objects: touched });
+      } catch (err) {
+        console.error('[kpi] reassert sharing after transition failed', { sheet: id, error: err instanceof Error ? err.message : String(err) });
       }
     }
   },

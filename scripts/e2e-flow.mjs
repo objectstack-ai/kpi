@@ -177,6 +177,19 @@ async function signIn(email) {
   cookie = (res.headers.getSetCookie() ?? []).map((c) => c.split(';')[0]).join('; ');
   return res.status;
 }
+/**
+ * 规则求值把新记录的共享行「撤销同步、授予异步」地补上(平台把再授予放进合并队列,
+ * 见 plugin-sharing 的 bu-tree-recompute 说明)。所以对**刚创建**的记录要给这段异步一个
+ * 有上限的等待,而不是把断言放宽:超时仍未出现就照常判失败。
+ */
+async function waitUntil(label, predicate, timeoutMs = 30000, stepMs = 1000) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    if (await predicate()) return true;
+    if (Date.now() >= deadline) { console.log(`  (waited ${timeoutMs}ms for ${label}, still not there)`); return false; }
+    await new Promise((r) => setTimeout(r, stepMs));
+  }
+}
 const STAMP = Date.now().toString(36);
 const EMAIL = { a: `a.market.${STAMP}@kpi.test`, b: `b.east.${STAMP}@kpi.test`, c: `c.leader.${STAMP}@kpi.test` };
 for (const [k, email] of Object.entries(EMAIL)) await signUp(`E2E ${k.toUpperCase()}`, email);
@@ -195,6 +208,10 @@ const plan3 = one(r);
 const subs3 = await list('kpi_plan_subject', `?plan=${plan3.id}&limit=50`);
 const marketSub3 = subs3.find((x) => x.subject === 'bu_market');
 await patch('kpi_plan_subject', marketSub3.id, { leader: U.c.id });
+// 到人分工:A(市场部)与 B(华东分公司)各一条,发布后产生「到人」维度结果,
+// 用来验证填报人员的行级安全只挡别人的到人结果、不挡本部门结果
+await post('kpi_staff_assignment', { plan: plan3.id, employee: U.a.id, unit: 'bu_market', weight: 100, coefficient: 1 });
+await post('kpi_staff_assignment', { plan: plan3.id, employee: U.b.id, unit: 'bu_east', weight: 100, coefficient: 1 });
 r = await patch('kpi_plan', plan3.id, { status: 'published' });
 const sheets3 = await list('kpi_entry_sheet', `?plan=${plan3.id}&limit=100`);
 const market3 = sheets3.find((x) => x.name.includes('市场部'));
@@ -204,13 +221,17 @@ log('T38', '发布第三版方案(市场部已配分管领导)生成 5 张填报
 const rulesRows = await list('sys_sharing_rule', '?limit=200');
 const kpiRules = rulesRows.filter((x) => String(x.name).startsWith('kpi_share_'));
 log('T39', '发布按方案配置写入动态共享规则(单元 4 类 + 分管领导),元数据零改动', kpiRules.length >= 21 && kpiRules.some((x) => x.name === 'kpi_share_sheet_bu_market' && x.recipient_type === 'unit_and_subordinates') && kpiRules.some((x) => x.recipient_type === 'user' && x.recipient_id === U.c.id && x.object_name === 'kpi_entry_sheet'), `rules=${kpiRules.length}`);
+const sheetShared = await waitUntil('市场部填报单共享给 A', async () => {
+  const rowsNow = await list('sys_record_share', '?limit=500');
+  return rowsNow.some((x) => x.object_name === 'kpi_entry_sheet' && x.record_id === market3.id && x.recipient_type === 'user' && x.recipient_id === U.a.id && x.access_level === 'edit');
+});
 const shareRows = await list('sys_record_share', '?limit=500');
-log('T40', '规则求值把单元共享展开成逐人记录共享行(市场部填报单 → 用户 A)', shareRows.some((x) => x.object_name === 'kpi_entry_sheet' && x.record_id === market3.id && x.recipient_type === 'user' && x.recipient_id === U.a.id && x.access_level === 'edit'), `shares=${shareRows.length}`);
+log('T40', '规则求值把单元共享展开成逐人记录共享行(市场部填报单 → 用户 A)', sheetShared, `shares=${shareRows.length}`);
 
 // 验收 2:部门填报人员只见本部门
 await signIn(EMAIL.a);
 let aSheets = await list('kpi_entry_sheet', '?limit=100');
-log('T41', '部门填报人员只看到本部门(市场部)填报单', aSheets.length > 0 && aSheets.every((x) => x.subject === 'bu_market'), `${aSheets.length} 张:${aSheets.map((x) => x.name).join(' | ')}`);
+log('T41', '部门填报人员只看到本部门(市场部)填报单,含本次新发布的那张', aSheets.length > 0 && aSheets.every((x) => x.subject === 'bu_market') && aSheets.some((x) => x.id === market3.id), `${aSheets.length} 张:${aSheets.map((x) => x.name).join(' | ')}`);
 r = await call('GET', `/data/kpi_entry_sheet/${east3.id}`);
 log('T42', '打开本部门以外(华东分公司)的填报单被拒绝', r.status === 403 || r.status === 404, `status=${r.status} ${msg(r).slice(0, 100)}`);
 const aLines = await list('kpi_entry_line', `?sheet=${market3.id}&limit=50`);
@@ -231,6 +252,7 @@ if (sheet3.status === 'draft') {
 
 // 验收 3:分公司核对人员只见本分公司核对任务
 await signIn(EMAIL.b);
+await waitUntil('华东核对任务共享给 B', async () => (await list('kpi_check_task', '?limit=100')).some((x) => x.sheet === market3.id));
 const bTasks = await list('kpi_check_task', '?limit=100');
 log('T44', '分公司核对人员只看到本分公司(华东)的核对任务', bTasks.length > 0 && bTasks.every((x) => x.branch === 'bu_east'), `${bTasks.length} 条:${bTasks.map((x) => x.name).join(' | ')}`);
 const bTask3 = bTasks.find((x) => x.sheet === market3.id);
@@ -274,6 +296,30 @@ log('T49', '否决加减分后立即重算,被否决的分不计入部门结果'
 // 验收 7:静态共享规则文件已删除(元数据零改动的前提)
 const staticRules = await list('sys_sharing_rule', '?limit=200');
 log('T50', '不存在方案发布之外来源的 KPI 共享规则(静态规则文件已删除)', staticRules.filter((x) => String(x.name).startsWith('kpi_share_')).every((x) => x.managed_by !== 'package'), staticRules.filter((x) => String(x.name).startsWith('kpi_share_')).map((x) => `${x.name}:${x.managed_by}`).slice(0, 3).join(' | '));
+
+
+// 行级安全:填报人员看得到本部门结果与本人到人结果,看不到别人的到人结果
+const adminResults = await list('kpi_result', `?plan=${plan3.id}&limit=100`);
+const deptRow = adminResults.find((x) => x.dimension === 'department' && x.unit === 'bu_market');
+const ownPersonRow = adminResults.find((x) => x.dimension === 'person' && x.person === U.a.id);
+const otherPersonRow = adminResults.find((x) => x.dimension === 'person' && x.person === U.b.id);
+await signIn(EMAIL.a);
+await waitUntil('本部门结果与本人到人结果共享给 A', async () => {
+  const now = await list('kpi_result', '?limit=100');
+  return !!deptRow && !!ownPersonRow && now.some((x) => x.id === deptRow.id) && now.some((x) => x.id === ownPersonRow.id);
+});
+const aResults = await list('kpi_result', '?limit=100');
+asAdmin();
+const sawDept = !!deptRow && aResults.some((x) => x.id === deptRow.id);
+const sawOwn = !!ownPersonRow && aResults.some((x) => x.id === ownPersonRow.id);
+const sawOther = !!otherPersonRow && aResults.some((x) => x.id === otherPersonRow.id);
+log('T51', '填报人员看到本部门结果与本人到人结果,看不到他人的到人结果', sawDept && sawOwn && !sawOther, `dept=${sawDept} own=${sawOwn} other=${sawOther} | A 可见 ${aResults.length} 条:${aResults.map((x) => `${x.dimension}${x.unit ? '/' + x.unit : ''}`).join(',')}`);
+
+// 演示夹具的租户对齐(临时,随 objectstack-ai/objectstack#14547 的平台修复删除)
+const demoUnits = await list('sys_business_unit', '?limit=50');
+const seededIds = ['bu_hq', 'bu_market', 'bu_ops', 'bu_hr', 'bu_east', 'bu_south', 'bu_north', 'bu_west'];
+const seeded = demoUnits.filter((u) => seededIds.includes(u.id));
+log('T52', '演示种子组织单元在启动时被补上组织归属(与 Setup 里新建的单元一致)', seeded.length === seededIds.length && seeded.every((u) => !!u.organization_id), seeded.map((u) => `${u.id}:${u.organization_id ?? 'null'}`).join(' '));
 
 const summary = { passed: results.filter((x) => x.ok).length, failed: results.filter((x) => !x.ok).length };
 console.log(JSON.stringify(summary));

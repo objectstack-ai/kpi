@@ -177,19 +177,16 @@ export function planSharingIntents(subjects: SubjectRow[], assignments: Assignme
   return intents;
 }
 
-function rowMatches(row: Record<string, any>, intent: SharingIntent, criteriaJson: string): boolean {
-  return (
-    row.object_name === intent.object &&
-    String(row.criteria_json ?? '') === criteriaJson &&
-    row.recipient_type === intent.recipientType &&
-    String(row.recipient_id ?? '') === intent.recipientId &&
-    row.access_level === intent.accessLevel &&
-    row.active !== false
-  );
-}
-
-/** 写入一条规则;同名规则已存在且内容一致时什么都不做(幂等)。 */
-async function ensureRule(api: Api, intent: SharingIntent, organizationId: string | null): Promise<'created' | 'updated' | 'unchanged'> {
+/**
+ * 写入一条规则。**内容相同也照写一次**,这不是多余的:平台对 `isSystem` 写入**跳过**记录
+ * 共享的物化(plugin-sharing 的 rule-hooks:「sharing materialisation skipped for isSystem
+ * writes」,官方补偿手段是重新求值规则,`evaluateRule` 幂等)。本应用的填报单、核对任务、
+ * 调整、结果**全部**由 hook 以系统上下文创建,所以这些记录不会在创建时拿到共享行 ——
+ * 重新写一次规则会触发求值器把该规则匹配到的记录整批补齐,这正是官方的补偿路径。
+ *
+ * 因此每个业务触发点(发布、进入分公司核对、调整新建、结果重算)都重新声明一次相关规则。
+ */
+async function ensureRule(api: Api, intent: SharingIntent, organizationId: string | null): Promise<'created' | 'reasserted'> {
   const criteriaJson = JSON.stringify(intent.criteria);
   const existing = await api.object('sys_sharing_rule').findOne({ where: { name: intent.name } });
   const payload: Record<string, unknown> = {
@@ -208,9 +205,8 @@ async function ensureRule(api: Api, intent: SharingIntent, organizationId: strin
     await api.object('sys_sharing_rule').insert(payload);
     return 'created';
   }
-  if (rowMatches(existing, intent, criteriaJson)) return 'unchanged';
   await api.object('sys_sharing_rule').updateById(String(existing.id), payload);
-  return 'updated';
+  return 'reasserted';
 }
 
 /**
@@ -231,9 +227,13 @@ async function unitOrganizations(api: Api, unitIds: Iterable<string>): Promise<M
 
 export interface ProvisionOutcome {
   created: number;
-  updated: number;
-  unchanged: number;
+  reasserted: number;
   failed: number;
+}
+
+export interface ProvisionOptions {
+  /** 只重新声明这些对象上的规则;省略 = 全部(方案发布时用)。 */
+  objects?: readonly string[];
 }
 
 /**
@@ -242,11 +242,12 @@ export interface ProvisionOutcome {
  * 单条规则写失败只记服务端日志并继续,绝不阻断发布 —— 数据范围是可补偿的:再次发布
  * 或管理员在 Setup 里补一条即可,而发布回滚会让已生成的填报单与业务动作一起丢失。
  */
-export async function provisionPlanSharing(api: Api, planId: string): Promise<ProvisionOutcome> {
-  const outcome: ProvisionOutcome = { created: 0, updated: 0, unchanged: 0, failed: 0 };
+export async function provisionPlanSharing(api: Api, planId: string, options: ProvisionOptions = {}): Promise<ProvisionOutcome> {
+  const outcome: ProvisionOutcome = { created: 0, reasserted: 0, failed: 0 };
   const subjects = (await api.object('kpi_plan_subject').find({ where: { plan: planId } })) as SubjectRow[];
   const assignments = (await api.object('kpi_staff_assignment').find({ where: { plan: planId } })) as AssignmentRow[];
-  const intents = planSharingIntents(subjects ?? [], assignments ?? []);
+  const all = planSharingIntents(subjects ?? [], assignments ?? []);
+  const intents = options.objects ? all.filter((i) => options.objects!.includes(i.object)) : all;
   const orgOf = await unitOrganizations(api, intents.map((i) => i.anchorUnit));
 
   for (const intent of intents) {

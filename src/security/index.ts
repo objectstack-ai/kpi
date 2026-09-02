@@ -85,9 +85,13 @@ export const DeptReporterPermissionSet = definePermissionSet({
     'kpi_entry_line.adjusted_score': { readable: true, editable: false },
     'kpi_entry_line.score': { readable: true, editable: false },
   },
-  // 到人结果只看本人(行级安全只收窄)
+  // 到人结果只看本人(行级安全只收窄)。
+  // 谓词必须把「到人」维度和其它维度分开:`person == current_user.id` 一条会把部门 / 分公司
+  // 维度的行一并挡掉 —— 那些行 person 为空,填报人员于是连本部门的结果都看不到。
+  // 共享才是外层闸门(结果对象 OWD 为 private,只有本单元的结果行被共享规则放行),
+  // 行级安全只在其上再收窄一层:非到人维度照常,到人维度只留本人。
   rowLevelSecurity: [
-    { name: 'kpi_result_own_person', object: 'kpi_result', operation: 'select', using: 'person == current_user.id', positions: ['kpi_dept_reporter'], enabled: true },
+    { name: 'kpi_result_own_person', object: 'kpi_result', operation: 'select', using: "dimension != 'person' || person == current_user.id", positions: ['kpi_dept_reporter'], enabled: true },
   ],
 });
 

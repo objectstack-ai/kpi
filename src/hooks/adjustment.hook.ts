@@ -1,6 +1,7 @@
 import type { Hook, HookContext } from '@objectstack/spec/data';
 import { actorId, fail, findById, hasPosition, isSystem, merged, nowIso, recordId, sys, toNumber, writeReview } from './util.js';
 import { regenerateResults } from '../services/results-service.js';
+import { provisionPlanSharing } from '../services/sharing-service.js';
 
 /** 数据调整申请:插入时记录调整前值;审批时盖章;批准后落地到明细并重算。 */
 export const AdjustmentHook: Hook = {
@@ -64,7 +65,14 @@ export const AdjustmentHook: Hook = {
         actor: actorId(ctx),
         reason: `「${line.indicator_name ?? line.id}」${row.adjust_type === 'result' ? '得分' : '实际值'} ${row.old_value ?? '空'} → ${newValue};原因:${row.reason ?? ''}`,
       });
-      if (sheet && (sheet.status === 'approved')) await regenerateResults(api, String(sheet.plan));
+      if (sheet && (sheet.status === 'approved')) {
+        await regenerateResults(api, String(sheet.plan));
+        try {
+          await provisionPlanSharing(api, String(sheet.plan), { objects: ['kpi_result'] });
+        } catch (err) {
+          console.error('[kpi] reassert result sharing after adjustment failed', { sheet: sheet.id, error: err instanceof Error ? err.message : String(err) });
+        }
+      }
     }
   },
 };
