@@ -402,7 +402,7 @@ interface FakeStore extends Record<string, Array<Record<string, any>>> {
   kpi_entry_sheet: Array<Record<string, any>>;
 }
 
-function fakeBackfillCtx(store: Partial<FakeStore>, refuse: ReadonlySet<string> = new Set()): {
+function fakeBackfillCtx(store: Partial<FakeStore>, refuse: ReadonlySet<string> = new Set(), failSheetLookup = false): {
   ctx: BackfillHostContext;
   writes: Array<{ object: string; id: string; data: Record<string, unknown>; context: unknown }>;
   logs: unknown[][];
@@ -421,6 +421,7 @@ function fakeBackfillCtx(store: Partial<FakeStore>, refuse: ReadonlySet<string> 
         const q = (query ?? {}) as Record<string, any>;
         const rows = tables[object] ?? [];
         if (object === 'kpi_entry_sheet') {
+          if (failSheetLookup) throw new Error('SQLITE_TOOBIG: too many SQL variables');
           const ids: string[] = q.where?.id?.$in ?? [];
           return rows.filter((r) => ids.includes(String(r.id)));
         }
@@ -519,6 +520,60 @@ describe('历史行方案回填', () => {
     await handlers[0]!();
     expect(writes).toHaveLength(0);
     expect(logs).toHaveLength(0);
+  });
+
+  it('读填报单失败:不抛、不阻断另一个对象的回填,本批延到下次启动', async () => {
+    // 整条链挂在 kernel:bootstrapped 上,从这里抛出去就是启动期未捕获拒绝
+    const { ctx, writes, logs } = fakeBackfillCtx({
+      kpi_check_task: [{ id: 'ct_1', sheet: 'sheet_ok', plan: null }],
+      kpi_adjustment: [{ id: 'adj_1', sheet: 'sheet_ok', plan: null }],
+      kpi_entry_sheet: sheets,
+    }, new Set(), true);
+
+    const outcome = await backfillPlanLinks(ctx);
+    expect(outcome).toMatchObject({ filled: 0, failed: 0 });
+    // 两个对象都跑到了(读失败没有把第二遍带走),各自一行落进 unresolved
+    expect(outcome.byObject.map((o) => o.object)).toEqual(['kpi_check_task', 'kpi_adjustment']);
+    expect(outcome.unresolved).toBe(2);
+    expect(writes).toHaveLength(0);
+    expect(logs.filter((l) => String(l[0]).includes('entry sheet lookup failed'))).toHaveLength(2);
+  });
+
+  it('注册入口即便内部整体失败也不抛 —— kernel:bootstrapped 上不能有未捕获拒绝', async () => {
+    const logs: unknown[][] = [];
+    const handlers: Array<() => Promise<void> | void> = [];
+    registerPlanLinkBackfill({
+      ql: {
+        find: async () => { throw new Error('engine not bound'); },
+        update: async () => null,
+      },
+      logger: { info: (...a: unknown[]) => logs.push(a), warn: (...a: unknown[]) => logs.push(a) },
+      hook: (_e, handler) => { handlers.push(handler); },
+    });
+    await expect(handlers[0]!()).resolves.toBeUndefined();
+    // 内层 lookup 自己兜住了,记一条 warn 而不是把异常抛给引导流程
+    expect(logs.some((l) => String(l[0]).includes('lookup failed'))).toBe(true);
+  });
+
+  it('整批都没写动时留下一条 warn,而不是静默停在中途', async () => {
+    // 500 行都推不出方案:取满一批、一个新 id 都没有 —— 收工,但要说出来
+    const many = Array.from({ length: 500 }, (_, i) => ({ id: `ct_${i}`, sheet: 'sheet_noplan', plan: null }));
+    const { ctx, logs } = fakeBackfillCtx({ kpi_check_task: many, kpi_entry_sheet: sheets });
+    const outcome = await backfillPlanLinks(ctx);
+    expect(outcome).toMatchObject({ filled: 0, unresolved: 500 });
+    expect(logs.some((l) => String(l[0]).includes('made no progress'))).toBe(true);
+  });
+
+  it('有回填发生时摘要走 warn 级 —— dev 的默认日志级别看不见 info', async () => {
+    const { ctx } = fakeBackfillCtx({
+      kpi_check_task: [{ id: 'ct_1', sheet: 'sheet_ok', plan: null }],
+      kpi_entry_sheet: sheets,
+    });
+    const levels: string[] = [];
+    const handlers: Array<() => Promise<void> | void> = [];
+    registerPlanLinkBackfill({ ...ctx, logger: { info: () => levels.push('info'), warn: () => levels.push('warn') }, hook: (_e, h) => { handlers.push(h); } });
+    await handlers[0]!();
+    expect(levels).toEqual(['warn']);
   });
 
   it('有回填发生时把条数记进日志', async () => {

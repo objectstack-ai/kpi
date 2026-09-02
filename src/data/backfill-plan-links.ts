@@ -67,15 +67,30 @@ function isBlank(v: unknown): boolean {
   return v === null || v === undefined || v === '';
 }
 
+/**
+ * 批量取这些填报单的方案。
+ *
+ * 读失败**不外抛**:整条调用链挂在 `kernel:bootstrapped` 上,从这里抛出去就是启动期的
+ * 未捕获拒绝 —— 轻则 `kpi_adjustment` 那一遍整个不跑,重则打断应用启动。而这一步的失败
+ * 本来就是可延后的:返回空 Map,本批全部落进 `unresolved`,下次启动再补。
+ *
+ * 一个真实的失败面:`$in` 一次塞进 {@link BATCH} 个 id,可能触到底层驱动的参数上限。
+ */
 async function planOfSheets(ctx: BackfillHostContext, sheetIds: string[]): Promise<Map<string, string>> {
   const map = new Map<string, string>();
   if (sheetIds.length === 0) return map;
-  const sheets = rowsOf(await ctx.ql.find('kpi_entry_sheet', {
-    where: { id: { $in: sheetIds } },
-    fields: ['id', 'plan'],
-    limit: sheetIds.length,
-    context: SYS,
-  }));
+  let sheets: Array<Record<string, any>>;
+  try {
+    sheets = rowsOf(await ctx.ql.find('kpi_entry_sheet', {
+      where: { id: { $in: sheetIds } },
+      fields: ['id', 'plan'],
+      limit: sheetIds.length,
+      context: SYS,
+    }));
+  } catch (err) {
+    ctx.logger?.warn?.('[kpi] plan backfill: entry sheet lookup failed, batch deferred to the next start', { sheets: sheetIds.length, error: err instanceof Error ? err.message : String(err) });
+    return map;
+  }
   for (const sheet of sheets) {
     if (!isBlank(sheet.plan)) map.set(String(sheet.id), String(sheet.plan));
   }
@@ -105,7 +120,15 @@ async function backfillObject(ctx: BackfillHostContext, object: string): Promise
       return outcome;
     }
     const fresh = batch.filter((r) => !seen.has(String(r.id)));
-    if (fresh.length === 0) return outcome;
+    if (fresh.length === 0) {
+      // 取满一批却一个新 id 都没有 = 这一整批都没写动(推不出方案 / 写被拒),而结果集里
+      // 很可能还压着更多行。就此收工是对的(再取还是同一批),但**不能静默** —— 否则
+      // 「回填做完了」与「回填卡在中途」在日志上长得一模一样。
+      if (batch.length === BATCH) {
+        ctx.logger?.warn?.('[kpi] plan backfill: a full batch made no progress, remaining rows left for the next start', { object, batch: batch.length, filled: outcome.filled, unresolved: outcome.unresolved, failed: outcome.failed });
+      }
+      return outcome;
+    }
     for (const r of fresh) seen.add(String(r.id));
 
     // 二次收窄:即使查询没能过滤掉,也只动 plan 确实为空、且有填报单的行。
@@ -123,7 +146,8 @@ async function backfillObject(ctx: BackfillHostContext, object: string): Promise
         await ctx.ql.update(object, { plan }, { where: { id: String(row.id) }, context: SYS });
         outcome.filled += 1;
       } catch (err) {
-        // 某类行被不可变 hook 拒绝写(例如已归档):跳过并计数,绝不绕过 hook 直写。
+        // 本仓的 hook 对系统上下文一律放行,所以这条路径今天走不到。留着它是为了将来:
+        // 若某个 hook 改成不对系统上下文放行,这里计数跳过而不中断,绝不绕过 hook 直写。
         outcome.failed += 1;
         ctx.logger?.warn?.('[kpi] plan backfill: row skipped, write refused', { object, record: row.id, error: err instanceof Error ? err.message : String(err) });
       }
@@ -150,17 +174,31 @@ export async function backfillPlanLinks(ctx: BackfillHostContext): Promise<Backf
  *
  * 无事可做时**不记日志**:这是每次启动都会跑的一步,补齐之后恒为零,恒定的一行零值只会
  * 让真正有回填发生的那次启动淹没在噪音里。
+ *
+ * 真有回填发生时走 `warn` 级而不是 `info`:dev 的默认日志级别看不见 `info`,而
+ * 「这次启动改写了 N 条历史数据」正是启动日志里最该被看见的一行 —— 一条一次性的、
+ * 补齐之后就不再出现的摘要,不构成噪音。
+ *
+ * `run` 里**不可能抛**:它挂在 `kernel:bootstrapped` 上,抛出去就是启动期的未捕获拒绝。
+ * 内层每处 IO 都已各自兜底,这里再包一层是形态上的保证(与 `align-demo-units.ts` 同形态),
+ * 不依赖内层将来是否守规矩。
  */
 export function registerPlanLinkBackfill(ctx: BackfillHostContext): void {
   const run = async (): Promise<void> => {
-    const outcome = await backfillPlanLinks(ctx);
-    if (outcome.filled === 0 && outcome.unresolved === 0 && outcome.failed === 0) return;
-    ctx.logger?.info?.('[kpi] 历史行方案回填完成', {
-      filled: outcome.filled,
-      unresolved: outcome.unresolved,
-      failed: outcome.failed,
-      byObject: outcome.byObject,
-    });
+    try {
+      const outcome = await backfillPlanLinks(ctx);
+      if (outcome.filled === 0 && outcome.unresolved === 0 && outcome.failed === 0) return;
+      const summary = {
+        filled: outcome.filled,
+        unresolved: outcome.unresolved,
+        failed: outcome.failed,
+        byObject: outcome.byObject,
+      };
+      if (outcome.filled > 0) ctx.logger?.warn?.('[kpi] 历史行方案回填完成', summary);
+      else ctx.logger?.info?.('[kpi] 历史行方案回填完成', summary);
+    } catch (err) {
+      ctx.logger?.warn?.('[kpi] plan backfill: skipped, unexpected failure', { error: err instanceof Error ? err.message : String(err) });
+    }
   };
   if (typeof ctx.hook === 'function') ctx.hook('kernel:bootstrapped', run);
   else void Promise.resolve().then(run);
