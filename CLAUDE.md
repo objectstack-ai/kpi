@@ -2,7 +2,7 @@
 
 本仓库是基于 ObjectStack 平台(`@objectstack/*` 17.x)开发的 KPI 考核管理系统。
 流程资产采用 `os-project-*` skill 库(baozhoutao/os-project-skills);领域知识 skill
-(`os-project-kb-<行业>`)待需求定稿后再建。**开工前必读**:`docs/00-设计方案.md`(确认后为唯一需求基准)、`docs/01-需求解读报告.md`、`docs/02-总体方案蓝图.md`、
+(`os-project-kb-<行业>`)待需求定稿后再建。**开工前必读**:`docs/需求/KPI考核管理系统-功能性需求文档-V1.3.md`(客户原始需求)、`docs/00-设计方案.md`(确认后为唯一需求基准)、`docs/01-需求解读报告.md`、`docs/02-总体方案蓝图.md`、
 `docs/03-方案分级.md`、`docs/04-需求符合度清单.md`。
 
 ## 构建与验证
