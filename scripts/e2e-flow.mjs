@@ -222,8 +222,9 @@ log('T38', '发布第三版方案(市场部已配分管领导)生成 5 张填报
 const rulesOf = async (planId) => (await list('sys_sharing_rule', '?limit=500')).filter((x) => String(x.criteria_json ?? '').includes(planId) && x.active !== false);
 const kpiRules = await rulesOf(plan3.id);
 // 推导条数(不是下限):5 个参与主体 × 4 类(填报单 / 核对任务 / 调整 / 结果)= 20,
-// 市场部配了分管领导 → +3(填报单、该主体结果、本人结果),2 条到人分工 → +2,合计 25。
-const EXPECTED_RULES = 5 * 4 + 3 + 2;
+// 市场部配了分管领导 → +3(填报单、该主体结果、本人结果),2 条到人分工 → +2,
+// 人力岗位 2 个 × 2 类(填报单 / 调整)→ +4,合计 29。
+const EXPECTED_RULES = 5 * 4 + 3 + 2 + 2 * 2;
 log('T39', '发布按方案配置写入动态共享规则,条数与方案配置精确相符,元数据零改动', kpiRules.length === EXPECTED_RULES && kpiRules.some((x) => x.object_name === 'kpi_entry_sheet' && x.recipient_type === 'unit_and_subordinates' && x.recipient_id === 'bu_market') && kpiRules.some((x) => x.recipient_type === 'user' && x.recipient_id === U.c.id && x.object_name === 'kpi_entry_sheet'), `rules=${kpiRules.length} expected=${EXPECTED_RULES}`);
 log('T39b', '规则条件按方案隔离:每条规则的条件里都带本方案 id', kpiRules.length > 0 && kpiRules.every((x) => { try { return JSON.parse(x.criteria_json).plan === plan3.id; } catch { return false; } }), `${kpiRules.length} 条`);
 const sheetShared = await waitUntil('市场部填报单共享给 A', async () => {
@@ -376,7 +377,9 @@ await signIn(EMAIL.a);
 await waitUntil('新方案的市场部填报单共享给 A', async () => (await list('kpi_entry_sheet', '?limit=100')).some((x) => x.id === market4.id));
 r = await post('kpi_bonus', { sheet: market4.id, title: '越权登记', bonus_type: 'add', points: 1, reason: '岗位反例' });
 asAdmin();
-log('T58', '非人力审核岗位登记加减分被拒绝(第 10 章第 6 项:人力审核提出)', r.status >= 400 && msg(r).includes('只有人力审核岗位可以登记加减分'), `status=${r.status} ${msg(r)}`);
+// 声明与执行一致后,部门填报人员的权限集不再声明加减分的新建权限 —— 拒绝发生在权限层,
+// 比业务规则更早;业务规则的文案由 T65 / T66 的真实人力岗位账号与单元测试取证。
+log('T58', '部门填报人员登记加减分被拒绝(权限集不再声明新建权限)', r.status >= 400, `status=${r.status} 拒绝层=${msg(r).includes('PERMISSION_DENIED') ? '权限集' : '业务规则'} ${msg(r).slice(0, 140)}`);
 
 // 审批岗位反例:同一个账号对已存在的加减分点「批准」,被岗位判定拒绝
 r = await post('kpi_bonus', { sheet: market4.id, title: '安全生产先进', bonus_type: 'add', points: 2, reason: '季度评优' });
@@ -431,6 +434,81 @@ r = await patch('kpi_entry_line', adjLine.id, { actual_value: 1 });
 asAdmin();
 const stillLine = await get('kpi_entry_line', adjLine.id);
 log('T64', '分公司核对人员直接修改填报明细实际值被拒绝(第 10 章第 13 项:只能确认 / 提出争议)', r.status >= 400 && Number(stillLine.actual_value) === Number(adjustedLine.actual_value), `status=${r.status} ${msg(r).slice(0, 140)}`);
+
+
+// ── 14 人力岗位的记录级写范围(调度员 2026-09-02 裁定,选项 A)────────────────────────
+// 方案发布时为人力审核 / 人力负责人两个岗位建按方案的共享规则(收件方类型 = position),
+// 于是这两个岗位对本方案的填报单与数据调整可编辑 —— 加减分是填报单的主从子记录,记录级
+// 判定看主记录,所以登记 / 审批加减分随之成立。以下全部用**真实岗位账号**取证,不用管理员。
+const EMAIL_HR = { reviewer: `hr.reviewer.${STAMP}@kpi.test`, head: `hr.head.${STAMP}@kpi.test` };
+for (const email of Object.values(EMAIL_HR)) await signUp('E2E HR', email);
+asAdmin();
+const usersHr = await list('sys_user', '?limit=200');
+const HR = usersHr.find((u) => u.email === EMAIL_HR.reviewer);
+const HEAD = usersHr.find((u) => u.email === EMAIL_HR.head);
+await post('sys_user_position', { user_id: HR.id, position: 'kpi_hr_reviewer' });
+await post('sys_user_position', { user_id: HEAD.id, position: 'kpi_hr_head' });
+
+// 新方案(两节点流程:部门填报 → 人力审核),让人力审核节点由人力审核账号亲自推进
+r = await post('kpi_plan', { name: '2026 年 12 月 月度考核', period_type: 'month', year: 2026, period_no: 12, period_start: '2026-12-01', period_end: '2026-12-31', based_on: plan.id });
+const plan5 = one(r);
+const steps5 = await list('kpi_plan_step', `?plan=${plan5.id}`);
+await call('DELETE', `/data/kpi_plan_step/${steps5.find((x) => x.step_type === 'branch_check').id}`);
+await call('DELETE', `/data/kpi_plan_step/${steps5.find((x) => x.step_type === 'leader_approve').id}`);
+await patch('kpi_plan', plan5.id, { status: 'published' });
+const sheets5 = await list('kpi_entry_sheet', `?plan=${plan5.id}&limit=100`);
+const market5 = sheets5.find((x) => x.name.includes('市场部'));
+const lines5 = await list('kpi_entry_line', `?sheet=${market5.id}&limit=50`);
+for (const l of lines5) await patch('kpi_entry_line', l.id, { actual_value: l.indicator_name === '客户满意度' ? 87.3 : (l.indicator_name === '利润完成率' ? 180 : 1320) });
+await patch('kpi_entry_sheet', market5.id, { pending_action: 'submit' });
+const hrShared = await waitUntil('本方案填报单共享给人力审核岗位持有人', async () => {
+  const rowsNow = await list('sys_record_share', '?limit=1000');
+  return rowsNow.some((x) => x.object_name === 'kpi_entry_sheet' && x.record_id === market5.id && x.recipient_id === HR.id && x.access_level === 'edit');
+});
+
+// 人力审核账号:登记加减分成功
+await signIn(EMAIL_HR.reviewer);
+r = await post('kpi_bonus', { sheet: market5.id, title: '专项攻关表彰', bonus_type: 'add', points: 2, reason: '按第 6 项由人力审核登记' });
+const hrBonus = one(r);
+const registered = r.status < 300 && !!hrBonus?.id;
+// 同一账号点批准 → 被岗位判定拒绝(职责分离)
+const selfApprove2 = await patch('kpi_bonus', hrBonus?.id ?? 'none', { status: 'approved' });
+asAdmin();
+log('T65', '人力审核账号登记加减分成功(岗位规则已授予记录级编辑权)', hrShared && registered && (await get('kpi_bonus', hrBonus.id)).status === 'draft', `share=${hrShared} register=${r.status} ${msg(r).slice(0, 90)}`);
+log('T66', '人力审核账号批准自己登记的加减分被拒绝(第 10 章第 6 项:人力负责人审批)', selfApprove2.status >= 400 && msg(selfApprove2).includes('只有人力负责人岗位可以审批加减分'), `status=${selfApprove2.status} ${msg(selfApprove2)}`);
+
+// 人力负责人账号:批准成功,填报单最终得分随之重算
+const before65 = await get('kpi_entry_sheet', market5.id);
+await signIn(EMAIL_HR.head);
+r = await patch('kpi_bonus', hrBonus.id, { status: 'approved' });
+const headRegister = await post('kpi_bonus', { sheet: market5.id, title: '人力负责人越权登记', bonus_type: 'add', points: 1, reason: '岗位反例' });
+asAdmin();
+const after65 = await get('kpi_entry_sheet', market5.id);
+const hrBonusRow = await get('kpi_bonus', hrBonus.id);
+log('T67', '人力负责人账号批准加减分成功,填报单最终得分随之重算', r.status < 300 && hrBonusRow.status === 'approved' && String(hrBonusRow.approved_by) === String(HEAD.id) && Number(after65.bonus_total) === Number(before65.bonus_total ?? 0) + 2 && Number(after65.total_score) === Number(before65.total_score) + 2, `approved_by=${hrBonusRow.approved_by === HEAD.id} before=${before65.total_score} after=${after65.total_score}`);
+log('T68', '人力负责人账号登记加减分被拒绝(权限集不声明新建权限)', headRegister.status >= 400, `status=${headRegister.status} 拒绝层=${msg(headRegister).includes('PERMISSION_DENIED') ? '权限集' : '业务规则'} ${msg(headRegister).slice(0, 140)}`);
+
+// 人力审核账号推进人力审核节点:驳回 → 重新提交 → 审核通过
+await signIn(EMAIL_HR.reviewer);
+const rejectRes = await patch('kpi_entry_sheet', market5.id, { pending_action: 'reject', action_reason: '数据口径请复核' });
+asAdmin();
+const afterReject5 = await get('kpi_entry_sheet', market5.id);
+await patch('kpi_entry_sheet', market5.id, { pending_action: 'submit' });
+await signIn(EMAIL_HR.reviewer);
+const approveRes = await patch('kpi_entry_sheet', market5.id, { pending_action: 'approve' });
+asAdmin();
+const afterApprove5 = await get('kpi_entry_sheet', market5.id);
+log('T69', '人力审核账号在人力审核节点驳回与审核通过均成功(真实岗位账号推进流程)', rejectRes.status < 300 && afterReject5.status === 'draft' && afterReject5.last_reject_reason === '数据口径请复核' && approveRes.status < 300 && afterApprove5.status === 'approved', `reject=${rejectRes.status}→${afterReject5.status} approve=${approveRes.status}→${afterApprove5.status}`);
+
+// 方案关闭:人力岗位对该方案的填报单留读、去写
+await patch('kpi_plan', plan5.id, { status: 'closed' });
+await waitUntil('已关闭方案的人力岗位规则降为只读', async () => (await rulesOf(plan5.id)).filter((x) => x.recipient_type === 'position').every((x) => x.access_level === 'read'), 15000);
+const hrRulesClosed = (await rulesOf(plan5.id)).filter((x) => x.recipient_type === 'position');
+await signIn(EMAIL_HR.reviewer);
+const readAfterClose = await call('GET', `/data/kpi_entry_sheet/${market5.id}`);
+const writeAfterClose = await post('kpi_bonus', { sheet: market5.id, title: '关闭后登记', bonus_type: 'add', points: 1, reason: '只读反例' });
+asAdmin();
+log('T70', '方案关闭后人力岗位对该方案填报单降为只读(留读、去写)', hrRulesClosed.length === 4 && hrRulesClosed.every((x) => x.access_level === 'read') && readAfterClose.status === 200 && writeAfterClose.status >= 400, `岗位规则 ${hrRulesClosed.length} 条全部 read=${hrRulesClosed.every((x) => x.access_level === 'read')} read=${readAfterClose.status} write=${writeAfterClose.status}`);
 
 const summary = { passed: results.filter((x) => x.ok).length, failed: results.filter((x) => !x.ok).length };
 console.log(JSON.stringify(summary));
