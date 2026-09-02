@@ -1,8 +1,8 @@
 # CLAUDE.md — KPI 考核管理系统(ObjectStack 应用)
 
 本仓库是基于 ObjectStack 平台(`@objectstack/*` 17.x)开发的 KPI 考核管理系统。
-流程资产采用 `os-project-*` skill 库(baozhoutao/os-project-skills);领域知识加载
-`os-project-kb-kpi`。**开工前必读**:`docs/01-需求解读报告.md`、`docs/02-总体方案蓝图.md`、
+流程资产采用 `os-project-*` skill 库(baozhoutao/os-project-skills);领域知识 skill
+(`os-project-kb-<行业>`)待需求定稿后再建。**开工前必读**:`docs/01-需求解读报告.md`、`docs/02-总体方案蓝图.md`、
 `docs/03-方案分级.md`、`docs/04-需求符合度清单.md`。
 
 ## 构建与验证
@@ -22,7 +22,7 @@ pnpm dev          # http://localhost:3000 ;Console 在 /_console/ ;管理员 adm
 
 - 对象机器名一律 `kpi_` 前缀(manifest namespace),字段 snake_case,配置键 camelCase;
 - 用户可见文案默认中文(对象/字段 label 直接中文;`zh-CN` 翻译包只补 en 回退),遵守
-  os-project-std-copy 四条红线:无内部代号、无异常原文、名词按 kb 术语表、报错三段式;
+  os-project-std-copy 四条红线:无内部代号、无异常原文、名词按需求文档 §1.4 术语表、报错三段式;
 - 数字字段四件套(小数位/最小值/最大值/单位)必须显式声明,禁用平台默认;
 - 计分口径唯一真值在 `src/lib/scoring.ts`,任何得分都经它算,禁止在视图/公式字段里二次实现;
 - 审核状态机唯一真值在 `src/hooks/sheet-transition.hook.ts`,按钮只改状态字段,规则全在 hook;
@@ -50,5 +50,5 @@ pnpm dev          # http://localhost:3000 ;Console 在 /_console/ ;管理员 adm
 | F2 合并权限 | 无——仅库级授权生效(AI 不自行合并) |
 | G1 失败升级 | 工作项评论 @ 技术负责人 |
 | G2 平台问题上报 | objectstack-ai/objectstack 仓库 issue(现象、最小复现、期望能力、平台版本) |
-| H1 开工前必读 | 本文 + `docs/` 四份文档 + `os-project-kb-kpi` |
+| H1 开工前必读 | 本文 + `docs/` 四份文档 |
 | H2 测试执行 | 暂不具备双实例条件:同会话自测,计划先落盘、逐条对照(dev-test 最低限度档) |

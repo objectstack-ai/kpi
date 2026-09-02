@@ -69,9 +69,13 @@ export async function hasPosition(ctx: HookContext, position: string | null): Pr
   if (isSystem(ctx) || !position) return true;
   const uid = actorId(ctx);
   if (!uid) return false;
-  const rows = await sys(ctx).object('sys_user_position').find({ where: { user_id: uid } });
+  const api = sys(ctx);
+  const rows = await api.object('sys_user_position').find({ where: { user_id: uid } });
   const held = new Set((rows ?? []).map((r: Record<string, unknown>) => String(r.position)));
-  return held.has(position) || held.has('kpi_admin');
+  if (held.has(position) || held.has('kpi_admin')) return true;
+  // 组织 owner / admin(sys_member.role)等同考核系统管理员
+  const memberships = await api.object('sys_member').find({ where: { user_id: uid } });
+  return (memberships ?? []).some((m: Record<string, unknown>) => m.role === 'owner' || m.role === 'admin');
 }
 
 export function nowIso(): string {

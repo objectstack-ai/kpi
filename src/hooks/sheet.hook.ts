@@ -30,11 +30,13 @@ export const SheetInsertGuardHook: Hook = {
 };
 
 /**
- * 填报单审核状态机(蓝图 C-2,方案分级 D-03)。
+ * 填报单审核状态机(蓝图 C-2,方案分级 D-03)—— before 阶段:只做校验与字段计算。
  *
  * 按钮只写 `pending_action`(+ `action_reason`);本 hook 按方案的流程节点计算目标状态、
- * 校验岗位、校验驳回原因必填、校验并行核对是否完成、写审核记录,并在通过 / 归档时
- * 触发结果汇总与归档快照。直接改 `status` 的非系统写入一律拒绝。
+ * 校验岗位、校验驳回原因必填、校验并行核对是否完成;直接改 `status` 的非系统写入一律拒绝。
+ * 所有副作用(审核记录、核对任务、快照、结果汇总)在 after 阶段执行,主写入被平台校验
+ * 拒绝时不会留下半截数据。`pending_action` / `action_reason` 随本次写入落库,after 阶段
+ * 读取后清空。
  */
 export const SheetTransitionHook: Hook = {
   name: 'kpi_sheet_transition',
@@ -91,94 +93,98 @@ export const SheetTransitionHook: Hook = {
 
     const actor = actorId(ctx);
     const at = nowIso();
-    input.status = result.toStatus;
-    input.current_step = result.toStep;
-    input.pending_action = null;
-    input.action_reason = null;
+    let toStatus = result.toStatus;
+    let toStep = result.toStep;
+
+    // 进入分公司核对但方案里没有其他分公司需要核对:自动越过该节点
+    if (toStatus === 'branch_checking') {
+      const branches = await api.object('kpi_plan_subject').find({ where: { plan: prev.plan, subject_type: 'branch' } });
+      const others = branches.filter((b: Record<string, any>) => String(b.subject) !== String(prev.subject));
+      if (others.length === 0) {
+        const next = transition(steps, 'branch_checking', 'approve');
+        if (next.ok) {
+          toStatus = next.toStatus;
+          toStep = next.toStep;
+        }
+      }
+    }
+
+    input.status = toStatus;
+    input.current_step = toStep;
+    input.pending_action = action;
+    input.action_reason = reason || null;
     if (action === 'submit') {
       input.submitted_at = at;
       input.submitted_by = actor;
       input.last_reject_reason = null;
     }
     if (action === 'reject') input.last_reject_reason = reason;
-    if (result.toStatus === 'approved') {
+    if (toStatus === 'approved') {
       input.approved_at = at;
       input.approved_by = actor;
     }
-    if (result.toStatus === 'archived') input.archived_at = at;
+    if (toStatus === 'archived') input.archived_at = at;
+  },
+};
 
-    await writeReview(api, {
-      sheet: id,
-      action,
-      step_label: result.atStepDef?.label ?? null,
-      from_status: fromStatus,
-      to_status: result.toStatus,
-      actor,
-      reason: reason || null,
-    });
+/** after 阶段:留痕、核对任务生成/重置、快照、结果汇总;最后清空待执行动作。 */
+export const SheetAfterTransitionHook: Hook = {
+  name: 'kpi_sheet_after_transition',
+  label: '填报单流程副作用',
+  object: 'kpi_entry_sheet',
+  events: ['afterUpdate'],
+  priority: 100,
+  handler: async (ctx: HookContext) => {
+    const input = (ctx.input ?? {}) as Record<string, any>;
+    const prev = (ctx.previous ?? {}) as Record<string, any>;
+    const now = merged<Record<string, any>>(ctx);
+    // 只有本次写入携带动作(按钮触发)才是流程推进;汇总字段重算等系统写入不带动作,直接跳过
+    const action = ('pending_action' in input ? input.pending_action : null) as SheetAction | null | undefined;
+    if (!action) return;
+    const id = String(now.id ?? prev.id ?? recordId(ctx) ?? '');
+    if (!id) return;
+    const api = sys(ctx);
+    const actor = actorId(ctx);
+    // 先清空动作,再做副作用:副作用失败也不会让动作残留而被反复触发
+    await api.object('kpi_entry_sheet').updateById(id, { pending_action: null, action_reason: null });
+    const fromStatus = prev.status as SheetStatus;
+    const toStatus = now.status as SheetStatus;
+    const steps = await loadPlanSteps(api, String(now.plan ?? prev.plan));
+    const planned = transition(steps, fromStatus, action);
+    const stepLabel = planned.ok ? planned.atStepDef?.label ?? null : null;
 
-    // 进入分公司并行核对:按方案参与的分公司生成核对任务(重复推进时复用未完成任务)
-    if (result.toStatus === 'branch_checking') {
-      const branches = await api.object('kpi_plan_subject').find({ where: { plan: prev.plan, subject_type: 'branch' } });
+    await writeReview(api, { sheet: id, action, step_label: stepLabel, from_status: fromStatus, to_status: toStatus, actor, reason: now.action_reason ?? null });
+    if (planned.ok && planned.toStatus === 'branch_checking' && toStatus !== 'branch_checking') {
+      await writeReview(api, { sheet: id, action: 'approve', step_label: '分公司核对', from_status: 'branch_checking', to_status: toStatus, actor: null, reason: '方案中没有需要核对的其他分公司,系统自动跳过' });
+    }
+
+    if (toStatus === 'branch_checking') {
+      const branches = await api.object('kpi_plan_subject').find({ where: { plan: now.plan ?? prev.plan, subject_type: 'branch' } });
       const existing = await api.object('kpi_check_task').find({ where: { sheet: id } });
       const existingBranches = new Set(existing.map((t: Record<string, any>) => String(t.branch)));
-      const sheetName = String(prev.name ?? id);
-      let created = 0;
+      const sheetName = String(now.name ?? prev.name ?? id);
       for (const b of branches) {
-        if (String(b.subject) === String(prev.subject)) continue; // 主体自己不核对自己
+        if (String(b.subject) === String(now.subject ?? prev.subject)) continue;
         if (existingBranches.has(String(b.subject))) continue;
         const bu = await findById(api, 'sys_business_unit', b.subject);
-        await api.object('kpi_check_task').insert({
-          name: `${sheetName} · ${bu?.name ?? b.subject} 核对`,
-          sheet: id,
-          branch: b.subject,
-          status: 'pending',
-        });
-        created += 1;
+        await api.object('kpi_check_task').insert({ name: `${sheetName} · ${bu?.name ?? b.subject} 核对`, sheet: id, branch: b.subject, status: 'pending' });
       }
-      // 驳回回到核对节点时,把已确认的任务重置为待核对
       if (action === 'reject') {
         for (const t of existing) {
           if (t.status !== 'pending') await api.object('kpi_check_task').updateById(String(t.id), { status: 'pending', comment: null, decided_by: null, decided_at: null });
         }
       }
-      if (created === 0 && existing.length === 0) {
-        // 没有任何需要核对的分公司:自动越过该节点
-        const next = transition(steps, 'branch_checking', 'approve');
-        if (next.ok) {
-          input.status = next.toStatus;
-          input.current_step = next.toStep;
-          if (next.toStatus === 'approved') {
-            input.approved_at = at;
-            input.approved_by = actor;
-          }
-          await writeReview(api, { sheet: id, action: 'approve', step_label: '分公司核对', from_status: 'branch_checking', to_status: next.toStatus, actor: null, reason: '无需核对的分公司,系统自动跳过' });
-        }
+    }
+
+    if (toStatus === 'archived') await createSnapshot(api, id, actor);
+    if (toStatus === 'approved' || toStatus === 'archived') {
+      try {
+        await regenerateResults(api, String(now.plan ?? prev.plan));
+      } catch (err) {
+        // 汇总失败不回滚流程:结果可在下次通过 / 归档 / 调整落地时重算;错误进服务端日志
+        console.error('[kpi] regenerate results failed', { plan: now.plan ?? prev.plan, error: err instanceof Error ? err.message : String(err) });
       }
     }
-
-    // 结果汇总在本次写入落库后才准确:延后到 after 阶段(见 SheetAfterTransitionHook)
-    if (input.status === 'archived') {
-      await createSnapshot(api, id, actor);
-    }
-  },
-};
-
-/** 通过 / 归档后重新生成四维结果(after 阶段读到的是已落库的新状态)。 */
-export const SheetAfterTransitionHook: Hook = {
-  name: 'kpi_sheet_after_transition',
-  label: '填报单通过后汇总结果',
-  object: 'kpi_entry_sheet',
-  events: ['afterUpdate'],
-  priority: 100,
-  handler: async (ctx: HookContext) => {
-    const prev = (ctx.previous ?? {}) as Record<string, any>;
-    const now = merged<Record<string, any>>(ctx);
-    const entered = (now.status === 'approved' || now.status === 'archived') && now.status !== prev.status;
-    if (!entered) return;
-    const planId = String(now.plan ?? prev.plan ?? '');
-    if (!planId) return;
-    await regenerateResults(sys(ctx), planId);
   },
 };
 

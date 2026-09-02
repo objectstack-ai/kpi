@@ -91,8 +91,9 @@ export const EntrySheet = ObjectSchema.create({
       field: 'status',
       initialStates: ['draft'],
       message: '填报单状态流转不合法。请使用页面上的提交、核对、审核、驳回按钮操作。',
+      // 拓扑护栏:允许流程内的合法相邻状态;节点顺序、岗位、驳回原因等真正的规则在 hook。
       transitions: {
-        draft: ['submitted'],
+        draft: ['submitted', 'branch_checking', 'hr_reviewing', 'leader_approving', 'approved'],
         submitted: ['branch_checking', 'hr_reviewing', 'leader_approving', 'approved', 'draft'],
         branch_checking: ['hr_reviewing', 'leader_approving', 'approved', 'draft', 'submitted'],
         hr_reviewing: ['leader_approving', 'approved', 'branch_checking', 'submitted', 'draft'],
@@ -201,7 +202,8 @@ export const CheckTask = ObjectSchema.create({
       field: 'status',
       initialStates: ['pending'],
       message: '核对任务只能从「待核对」变为「已确认」或「有争议」;有争议的任务可重新确认。',
-      transitions: { pending: ['confirmed', 'disputed'], disputed: ['confirmed', 'pending'], confirmed: [] },
+      // confirmed → pending 只在填报单被驳回回到核对节点时由系统重置(核对 hook 拒绝非系统的回退)
+      transitions: { pending: ['confirmed', 'disputed'], disputed: ['confirmed', 'pending'], confirmed: ['pending'] },
     },
     {
       type: 'script' as const,

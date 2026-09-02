@@ -13,6 +13,9 @@ export const CheckTaskDecideHook: Hook = {
     const prev = (ctx.previous ?? {}) as Record<string, any>;
     if (!('status' in input) || input.status === prev.status) return;
     if (isSystem(ctx)) return;
+    if (input.status === 'pending') {
+      fail('核对失败:已确认的核对不能撤回。如需重新核对,请由审核人驳回填报单。', 'KPI_CHECK_REVERT');
+    }
     if (!(await hasPosition(ctx, 'kpi_branch_checker'))) {
       fail('核对失败:该操作需要「分公司核对人员」岗位。如需处理,请联系管理员分配岗位。', 'KPI_CHECK_POSITION');
     }
@@ -34,7 +37,7 @@ export const CheckTaskAfterDecideHook: Hook = {
   handler: async (ctx: HookContext) => {
     const prev = (ctx.previous ?? {}) as Record<string, any>;
     const now = merged<Record<string, any>>(ctx);
-    if (now.status === prev.status) return;
+    if (now.status === prev.status || now.status === 'pending') return;
     const api = sys(ctx);
     const sheetId = String(now.sheet ?? prev.sheet);
     const bu = await findById(api, 'sys_business_unit', now.branch ?? prev.branch);

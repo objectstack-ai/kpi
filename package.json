@@ -18,7 +18,8 @@
     "validate": "objectstack validate",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "verify": "pnpm validate && pnpm typecheck && pnpm test"
+    "verify": "pnpm validate && pnpm typecheck && pnpm test",
+    "e2e": "node scripts/e2e-flow.mjs"
   },
   "dependencies": {
     "@objectstack/connector-mcp": "^17.2.0",

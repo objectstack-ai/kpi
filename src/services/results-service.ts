@@ -73,7 +73,7 @@ export async function regenerateResults(api: Api, planId: string): Promise<numbe
 
   const rows = aggregateResults(planName, sheetSummaries, subjects, assignments);
   const results = api.object('kpi_result');
-  await results.delete({ where: { plan: planId } });
+  await results.delete({ where: { plan: planId }, multi: true });
   const at = nowIso();
   for (const r of rows) {
     await results.insert({
