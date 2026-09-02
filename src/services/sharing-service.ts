@@ -67,13 +67,51 @@ export function isReadOnlyPlanStatus(status: unknown): boolean {
   return status === 'closed' || status === 'archived';
 }
 
+/** 平台 `sys_sharing_rule.name` 的字段长度上界 —— 超过它规则写不进去。 */
+export const RULE_NAME_MAX = 100;
+
+/**
+ * 单个 id 片段的长度上界。最长的规则名形态是
+ * `kpi_p{方案}_result_leader_{单元}_{领导}` —— 固定部分 `kpi_p` + `_` + `result_leader_`
+ * + `_` 共 21 字符,三个片段各 26 时总长 99,正好落在 {@link RULE_NAME_MAX} 以内。
+ * 其余形态都更短(`{key}_pos_{position}` 的两段都是本文件里的常量)。
+ */
+export const RULE_SLUG_MAX = 26;
+
+/**
+ * 8 位稳定哈希:两个互相独立的 32 位滚动散列(djb2 / sdbm)各取 4 位 base36。
+ * 只用于**超长的合规 id**这一条新分支 —— 不改既有折法的哈希,理由见 {@link ruleSlug}。
+ */
+function stableHash8(s: string): string {
+  let h1 = 5381;
+  let h2 = 52711;
+  for (let i = 0; i < s.length; i += 1) {
+    const c = s.charCodeAt(i);
+    h1 = ((h1 * 33) ^ c) >>> 0;
+    h2 = ((h2 * 31) + c) >>> 0;
+  }
+  return h1.toString(36).padStart(7, '0').slice(-4) + h2.toString(36).padStart(7, '0').slice(-4);
+}
+
 /**
  * 规则名片段:单元 id 这类已经合规的短标识原样保留,便于管理员在 Setup 里认;
  * 方案 id / 用户 id 带大小写与短横线,按稳定散列折成合规片段(同一 id 恒得同一片段)。
+ *
+ * ## 长度上界(为什么只收窄「原样保留」这一支)
+ *
+ * 三条分支的产物都不超过 {@link RULE_SLUG_MAX},于是任何方案名下的规则名都 ≤
+ * {@link RULE_NAME_MAX}。原样保留一支此前放到 32,三段拼起来最坏 116 —— 越界的只有它。
+ *
+ * ⚠️ 第三支(带大小写 / 短横线 / 非 ASCII 的 id,平台记录 id 是 UUID,**绝大多数规则走这里**)
+ * 的头部长度与哈希拼法**一个字都不能动**:改了会让升级前已写入的规则整批改名,而旧名既不在
+ * 新的目标集合里、又不再落在新的方案前缀下,{@link reconcilePlanSharing} 从此永远圈不到它们
+ * —— 那正是本模块存在的理由(不可回收的授权)。它产出 12 + 1 + 最多 7 = 20 ≤ 26,本来就在界内。
  */
 export function ruleSlug(raw: string): string {
   const s = String(raw ?? '');
-  if (/^[a-z0-9_]{1,32}$/.test(s)) return s;
+  if (/^[a-z0-9_]+$/.test(s) && s.length <= RULE_SLUG_MAX) return s;
+  // 合规但超长:截断 + 8 位稳定哈希,长度恒为 17 + 1 + 8 = 26。
+  if (/^[a-z0-9_]+$/.test(s)) return `${s.slice(0, RULE_SLUG_MAX - 9)}_${stableHash8(s)}`;
   let h = 5381;
   for (let i = 0; i < s.length; i += 1) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
   const head = s.toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 12);
@@ -275,7 +313,30 @@ export function planSharingIntents(
   return intents;
 }
 
-export type EnsureOutcome = 'created' | 'reasserted' | 'skipped_customized' | 'skipped_inactive';
+/**
+ * 本应用对账停用一条规则时,盖在它描述开头的标记。
+ *
+ * 用途只有一个:把**管理员在 Setup 里手工撤销授权**与**本应用自己对账停用**分开 ——
+ * 前者是要留意的人工决定(有人主动收回了范围),后者是每次发布都在发生的常规回收,
+ * 混在同一条 `skipped_inactive` 日志里会让前者淹没在噪音中。
+ *
+ * 用描述前缀而不是新增字段:`sys_sharing_rule` 是平台对象,本应用不给它加列。
+ */
+export const RECONCILED_DESCRIPTION_MARK = '[方案对账已停用]';
+
+/** 这条已停用的规则是本应用对账停的,还是管理员手工停的? */
+export function isReconciledDeactivation(rule: { description?: unknown } | null | undefined): boolean {
+  return String(rule?.description ?? '').startsWith(RECONCILED_DESCRIPTION_MARK);
+}
+
+export type EnsureOutcome =
+  | 'created'
+  | 'reasserted'
+  | 'skipped_customized'
+  /** 规则 active=false,且描述上没有对账标记 —— 管理员手工撤销的授权。 */
+  | 'skipped_inactive_admin'
+  /** 规则 active=false,且带对账标记 —— 本应用上一次对账停用的。 */
+  | 'skipped_inactive_reconciled';
 
 /**
  * 写入一条规则。**内容相同也照写一次**,这不是多余的:平台对 `isSystem` 写入**跳过**记录
@@ -310,7 +371,7 @@ async function ensureRule(api: Api, intent: SharingIntent, organizationId: strin
     return 'created';
   }
   if (existing.customized === true) return 'skipped_customized';
-  if (existing.active === false) return 'skipped_inactive';
+  if (existing.active === false) return isReconciledDeactivation(existing) ? 'skipped_inactive_reconciled' : 'skipped_inactive_admin';
   await api.object('sys_sharing_rule').updateById(String(existing.id), payload);
   return 'reasserted';
 }
@@ -349,9 +410,18 @@ export interface ProvisionOptions {
   reconcile?: boolean;
 }
 
-/** 停用一条不再需要的规则(保留行以便管理员看到它曾经存在,不删除)。 */
+/**
+ * 停用一条不再需要的规则(保留行以便管理员看到它曾经存在,不删除)。
+ *
+ * 同时在描述上盖 {@link RECONCILED_DESCRIPTION_MARK}:下次这条规则重新进入目标集合时,
+ * `ensureRule` 靠它分辨「本应用停的」与「管理员停的」,两种情形记不同的日志。
+ */
 async function deactivateRule(api: Api, rule: Record<string, any>): Promise<void> {
-  await api.object('sys_sharing_rule').updateById(String(rule.id), { active: false });
+  const description = String(rule.description ?? '');
+  await api.object('sys_sharing_rule').updateById(String(rule.id), {
+    active: false,
+    description: isReconciledDeactivation(rule) ? description : `${RECONCILED_DESCRIPTION_MARK}${description}`,
+  });
 }
 
 /**
@@ -388,6 +458,17 @@ async function reconcilePlanSharing(
  *
  * 单条规则写失败只记服务端日志并继续,绝不阻断发布 —— 数据范围是可补偿的:再次发布
  * 或管理员在 Setup 里补一条即可,而发布回滚会让已生成的填报单与业务动作一起丢失。
+ *
+ * ## 已知取舍:重申的扇出(记录,本次不做 —— 调度员 2026-09-02)
+ *
+ * 每次审批通过、加减分裁定、调整落地都会重申一批规则,而每次写规则都要平台把该规则匹配到的
+ * **全部**记录重新物化成 `sys_record_share` 行(这正是 {@link ensureRule} 「内容相同也照写」
+ * 的目的)。于是一个方案在一轮考核里会被重复求值很多次:代价随「参与主体数 × 该方案记录数
+ * × 业务动作次数」增长,大方案上是可观的写放大。
+ *
+ * 不在本次处理,因为省掉重申需要先有一个可靠的「这批记录已经物化过」判据,而记录是由 hook
+ * 以系统上下文陆续创建的(创建时**不**物化),判据本身就是新的一致性风险。真要优化,方向是
+ * 按对象 / 按新记录做增量物化,而不是在这里少写几次规则。
  */
 export async function provisionPlanSharing(api: Api, planId: string, options: ProvisionOptions = {}): Promise<ProvisionOutcome> {
   const outcome: ProvisionOutcome = { created: 0, reasserted: 0, skipped: 0, deactivated: 0, failed: 0 };
@@ -402,6 +483,11 @@ export async function provisionPlanSharing(api: Api, planId: string, options: Pr
     const organizationId = orgOf.get(intent.anchorUnit) ?? null;
     if (!organizationId) {
       // 无组织的规则展开不出人、扫描又跨租户 —— 宁可不写,响亮地记一条。
+      //
+      // 维持拒绝(调度员 2026-09-02 裁定):考虑过的另一种做法是猜一个组织(单组织时取它)
+      // 再写进去。不采纳 —— 猜错组织写出的规则会把范围授给**另一个租户**的人,而症状与
+      // 「规则没写」完全一样(谁也看不到记录),要靠逐条比对组织 id 才查得出来。宁可在这里
+      // 响亮地失败一次,让管理员把单元的组织补上。
       outcome.failed += 1;
       console.error('[kpi] KPI_SHARING_NO_ORG: sharing rule not written because its business unit has no organization', { rule: intent.name, unit: intent.anchorUnit });
       continue;
@@ -412,7 +498,12 @@ export async function provisionPlanSharing(api: Api, planId: string, options: Pr
       else if (result === 'reasserted') outcome.reasserted += 1;
       else {
         outcome.skipped += 1;
-        console.info('[kpi] sharing rule left untouched by admin decision', { rule: intent.name, reason: result });
+        // 两个标记,不是一个:管理员手工撤销的授权要看得见,本应用自己对账停的是常规噪音。
+        if (result === 'skipped_inactive_reconciled') {
+          console.info('[kpi] sharing rule still inactive from this app\'s own reconcile', { rule: intent.name, reason: result });
+        } else {
+          console.info('[kpi] sharing rule left untouched by admin decision', { rule: intent.name, reason: result });
+        }
       }
     } catch (err) {
       outcome.failed += 1;
