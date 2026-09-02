@@ -10,7 +10,6 @@ import { KpiApp } from './src/apps/index.js';
 import { allHooks } from './src/hooks/index.js';
 import { allPermissionSets, allPositions } from './src/security/index.js';
 import { registerKpiPositionBindings } from './src/security/bind-position-sets.js';
-import { allSharingRules } from './src/security/sharing-rules.js';
 import { KpiTranslationBundle } from './src/translations/index.js';
 import { KpiSeedData } from './src/data/index.js';
 
@@ -48,7 +47,6 @@ export default defineStack({
 
   positions: allPositions,
   permissions: allPermissionSets,
-  sharingRules: allSharingRules,
 
   data: KpiSeedData,
 });

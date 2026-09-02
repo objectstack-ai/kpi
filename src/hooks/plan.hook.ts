@@ -1,6 +1,7 @@
 import type { Hook, HookContext } from '@objectstack/spec/data';
 import { actorId, fail, findById, isSystem, merged, nameOf, nowIso, recordId, sys, toNumber, writeReview } from './util.js';
 import { validateSteps, type PlanStepDef } from '../lib/workflow.js';
+import { provisionPlanSharing } from '../services/sharing-service.js';
 import { loadPlanSteps } from './sheet.hook.js';
 
 const FROZEN_MESSAGE = '修改失败:方案已发布,配置已冻结。如需调整指标、权重、目标或流程,请新建方案版本。';
@@ -170,6 +171,13 @@ export const PlanPublishHook: Hook = {
         await api.object('kpi_entry_line').insert({ sheet: sheetId, plan_indicator: pi.id, actual_value: null });
       }
       await writeReview(api, { sheet: sheetId, action: 'generate', step_label: '方案发布', from_status: null, to_status: 'draft', actor, reason: `方案「${prev.name}」发布,生成填报单` });
+    }
+
+    // 数据范围:按参与主体、分管领导、到人分工补齐共享规则(幂等)。失败不阻断发布。
+    try {
+      await provisionPlanSharing(api, id);
+    } catch (err) {
+      console.error('[kpi] provision plan sharing failed', { plan: id, error: err instanceof Error ? err.message : String(err) });
     }
   },
 };

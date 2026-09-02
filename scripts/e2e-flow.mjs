@@ -163,6 +163,118 @@ log('T36', '两节点流程(填报→人力审核):提交直达人力审核,通�
 const costLine = lines2.find((l) => l.indicator_name === '成本费用率');
 const cl = await get('kpi_entry_line', costLine.id);
 log('T37', '逆向指标:目标 12 实际 10 → 完成率 120%,封顶 110% → 得分 55(权重 50)', cl.completion_rate === 120 && cl.score_rate === 110 && cl.score === 55, `rate=${cl.completion_rate} score_rate=${cl.score_rate} score=${cl.score}`);
+
+// ── 12 数据范围:非管理员账号(动态记录共享)──────────────────────────────
+// 数据范围是服务端行为,只能用真实的非管理员登录态验证:管理员绕过所有范围。
+const ADMIN_COOKIE = cookie;
+const asAdmin = () => { cookie = ADMIN_COOKIE; };
+async function signUp(name, email) {
+  const res = await fetch(BASE + '/auth/sign-up/email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, email, password: 'Passw0rd!23' }) });
+  return res.status;
+}
+async function signIn(email) {
+  const res = await fetch(BASE + '/auth/sign-in/email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: 'Passw0rd!23' }) });
+  cookie = (res.headers.getSetCookie() ?? []).map((c) => c.split(';')[0]).join('; ');
+  return res.status;
+}
+const STAMP = Date.now().toString(36);
+const EMAIL = { a: `a.market.${STAMP}@kpi.test`, b: `b.east.${STAMP}@kpi.test`, c: `c.leader.${STAMP}@kpi.test` };
+for (const [k, email] of Object.entries(EMAIL)) await signUp(`E2E ${k.toUpperCase()}`, email);
+asAdmin();
+const allUsers = await list('sys_user', '?limit=200');
+const U = { a: allUsers.find((u) => u.email === EMAIL.a), b: allUsers.find((u) => u.email === EMAIL.b), c: allUsers.find((u) => u.email === EMAIL.c) };
+await post('sys_business_unit_member', { user_id: U.a.id, business_unit_id: 'bu_market', is_primary: true });
+await post('sys_user_position', { user_id: U.a.id, position: 'kpi_dept_reporter' });
+await post('sys_business_unit_member', { user_id: U.b.id, business_unit_id: 'bu_east', is_primary: true });
+await post('sys_user_position', { user_id: U.b.id, position: 'kpi_branch_checker' });
+await post('sys_user_position', { user_id: U.c.id, position: 'kpi_exec_leader' });
+
+// 新方案版本:发布前把 C 配成市场部的分管领导,验证共享随方案配置动态生效
+r = await post('kpi_plan', { name: '2026 年 10 月 月度考核', period_type: 'month', year: 2026, period_no: 10, period_start: '2026-10-01', period_end: '2026-10-31', based_on: plan.id });
+const plan3 = one(r);
+const subs3 = await list('kpi_plan_subject', `?plan=${plan3.id}&limit=50`);
+const marketSub3 = subs3.find((x) => x.subject === 'bu_market');
+await patch('kpi_plan_subject', marketSub3.id, { leader: U.c.id });
+r = await patch('kpi_plan', plan3.id, { status: 'published' });
+const sheets3 = await list('kpi_entry_sheet', `?plan=${plan3.id}&limit=100`);
+const market3 = sheets3.find((x) => x.name.includes('市场部'));
+const east3 = sheets3.find((x) => x.name.includes('华东分公司'));
+log('T38', '发布第三版方案(市场部已配分管领导)生成 5 张填报单', sheets3.length === 5 && !!market3 && !!east3, `${msg(r).slice(0, 80)} sheets=${sheets3.length}`);
+
+const rulesRows = await list('sys_sharing_rule', '?limit=200');
+const kpiRules = rulesRows.filter((x) => String(x.name).startsWith('kpi_share_'));
+log('T39', '发布按方案配置写入动态共享规则(单元 4 类 + 分管领导),元数据零改动', kpiRules.length >= 21 && kpiRules.some((x) => x.name === 'kpi_share_sheet_bu_market' && x.recipient_type === 'unit_and_subordinates') && kpiRules.some((x) => x.recipient_type === 'user' && x.recipient_id === U.c.id && x.object_name === 'kpi_entry_sheet'), `rules=${kpiRules.length}`);
+const shareRows = await list('sys_record_share', '?limit=500');
+log('T40', '规则求值把单元共享展开成逐人记录共享行(市场部填报单 → 用户 A)', shareRows.some((x) => x.object_name === 'kpi_entry_sheet' && x.record_id === market3.id && x.recipient_type === 'user' && x.recipient_id === U.a.id && x.access_level === 'edit'), `shares=${shareRows.length}`);
+
+// 验收 2:部门填报人员只见本部门
+await signIn(EMAIL.a);
+let aSheets = await list('kpi_entry_sheet', '?limit=100');
+log('T41', '部门填报人员只看到本部门(市场部)填报单', aSheets.length > 0 && aSheets.every((x) => x.subject === 'bu_market'), `${aSheets.length} 张:${aSheets.map((x) => x.name).join(' | ')}`);
+r = await call('GET', `/data/kpi_entry_sheet/${east3.id}`);
+log('T42', '打开本部门以外(华东分公司)的填报单被拒绝', r.status === 403 || r.status === 404, `status=${r.status} ${msg(r).slice(0, 100)}`);
+const aLines = await list('kpi_entry_line', `?sheet=${market3.id}&limit=50`);
+for (const l of aLines) await patch('kpi_entry_line', l.id, { actual_value: l.indicator_name === '客户满意度' ? 87.3 : (l.indicator_name === '利润完成率' ? 180 : 1320) });
+r = await patch('kpi_entry_sheet', market3.id, { pending_action: 'submit' });
+asAdmin();
+let sheet3 = await get('kpi_entry_sheet', market3.id);
+log('T43', '部门填报人员能填写实际值并提交本部门填报单', sheet3.status === 'branch_checking' && Number(sheet3.indicator_score) > 0, `status=${sheet3.status} score=${sheet3.indicator_score} ${msg(r).slice(0, 100)}`);
+// 下游用例(分管领导、加减分重算)不依赖上面的部门填报人员路径:填报人员被挡住时由管理员
+// 把填报单推到同一状态,让每条用例只测它自己声称的东西。
+if (sheet3.status === 'draft') {
+  for (const l of await list('kpi_entry_line', `?sheet=${market3.id}&limit=50`)) {
+    await patch('kpi_entry_line', l.id, { actual_value: l.indicator_name === '客户满意度' ? 87.3 : (l.indicator_name === '利润完成率' ? 180 : 1320) });
+  }
+  await patch('kpi_entry_sheet', market3.id, { pending_action: 'submit' });
+  sheet3 = await get('kpi_entry_sheet', market3.id);
+}
+
+// 验收 3:分公司核对人员只见本分公司核对任务
+await signIn(EMAIL.b);
+const bTasks = await list('kpi_check_task', '?limit=100');
+log('T44', '分公司核对人员只看到本分公司(华东)的核对任务', bTasks.length > 0 && bTasks.every((x) => x.branch === 'bu_east'), `${bTasks.length} 条:${bTasks.map((x) => x.name).join(' | ')}`);
+const bTask3 = bTasks.find((x) => x.sheet === market3.id);
+r = bTask3 ? await patch('kpi_check_task', bTask3.id, { status: 'confirmed', comment: '华东已核对' }) : { status: 0, json: '本分公司核对任务不可见' };
+log('T45', '分公司核对人员能确认本分公司的核对任务', r.status < 300 && r.status > 0, msg(r).slice(0, 120));
+
+// 验收 4:分管领导只见分管主体
+asAdmin();
+const tasks3 = await list('kpi_check_task', `?sheet=${market3.id}&limit=20`);
+for (const t of tasks3) if (t.status !== 'confirmed') await patch('kpi_check_task', t.id, { status: 'confirmed', comment: '已确认' });
+await patch('kpi_entry_sheet', market3.id, { pending_action: 'approve', action_reason: '人力审核通过' });
+sheet3 = await get('kpi_entry_sheet', market3.id);
+const opsSheet3 = sheets3.find((x) => x.name.includes('运营部'));
+await signIn(EMAIL.c);
+const cSheets = await list('kpi_entry_sheet', '?limit=100');
+log('T46', '分管领导只看到分管主体(市场部)的填报单,看不到运营部', cSheets.length > 0 && cSheets.every((x) => x.subject === 'bu_market') && !cSheets.some((x) => x.id === opsSheet3.id), `${cSheets.length} 张:${cSheets.map((x) => x.name).join(' | ')}`);
+r = await patch('kpi_entry_sheet', market3.id, { pending_action: 'approve' });
+asAdmin();
+sheet3 = await get('kpi_entry_sheet', market3.id);
+log('T47', '分管领导能在「领导审批中」执行审核通过', sheet3.status === 'approved', `beforeLeader=leader_approving? status=${sheet3.status} ${msg(r).slice(0, 120)}`);
+
+// 验收 5:加减分审批后立即重算结果
+let res3 = await list('kpi_result', `?plan=${plan3.id}&limit=100`);
+const before3 = res3.find((x) => x.dimension === 'department' && x.unit === 'bu_market');
+r = await post('kpi_bonus', { sheet: market3.id, title: '重大项目中标', bonus_type: 'add', points: 3, reason: '中标 B 项目' });
+const bonus3 = one(r);
+await patch('kpi_bonus', bonus3.id, { status: 'approved' });
+sheet3 = await get('kpi_entry_sheet', market3.id);
+res3 = await list('kpi_result', `?plan=${plan3.id}&limit=100`);
+const after3 = res3.find((x) => x.dimension === 'department' && x.unit === 'bu_market');
+log('T48', '已通过填报单批准加减分后,部门结果立即等于新的最终得分', !!after3 && Number(after3.score) === Number(sheet3.total_score) && Number(after3.score) === Number(before3.score) + 3, `before=${before3?.score} after=${after3?.score} sheet_total=${sheet3.total_score}`);
+// 否决走的是「待审批 → 已否决」(加减分状态机不允许从已批准回退),被否决的分不计入得分
+r = await post('kpi_bonus', { sheet: market3.id, title: '安全隐患', bonus_type: 'deduct', points: 5, reason: '待审批后被否决' });
+const bonus3b = one(r);
+r = await patch('kpi_bonus', bonus3b.id, { status: 'rejected' });
+res3 = await list('kpi_result', `?plan=${plan3.id}&limit=100`);
+const afterReject = res3.find((x) => x.dimension === 'department' && x.unit === 'bu_market');
+sheet3 = await get('kpi_entry_sheet', market3.id);
+log('T49', '否决加减分后立即重算,被否决的分不计入部门结果', r.status < 300 && !!afterReject && Number(afterReject.score) === Number(after3.score) && Number(afterReject.score) === Number(sheet3.total_score), `after_reject=${afterReject?.score} expected=${after3?.score} sheet_total=${sheet3.total_score} ${msg(r).slice(0, 80)}`);
+
+// 验收 7:静态共享规则文件已删除(元数据零改动的前提)
+const staticRules = await list('sys_sharing_rule', '?limit=200');
+log('T50', '不存在方案发布之外来源的 KPI 共享规则(静态规则文件已删除)', staticRules.filter((x) => String(x.name).startsWith('kpi_share_')).every((x) => x.managed_by !== 'package'), staticRules.filter((x) => String(x.name).startsWith('kpi_share_')).map((x) => `${x.name}:${x.managed_by}`).slice(0, 3).join(' | '));
+
 const summary = { passed: results.filter((x) => x.ok).length, failed: results.filter((x) => !x.ok).length };
 console.log(JSON.stringify(summary));
 import('node:fs').then((fs) => fs.writeFileSync(process.argv[2] ?? '/dev/null', JSON.stringify(results, null, 2)));

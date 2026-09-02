@@ -36,12 +36,14 @@ pnpm dev             # http://localhost:3000 ;Console: /_console/ ;管理员 adm
 | 系统管理员 | `kpi_admin`(组织 owner/admin 自动等同) | `kpi_admin_set` | 全部 |
 | 人力审核 | `kpi_hr_reviewer` | `kpi_hr_reviewer_set` | 全部 |
 | 人力负责人 | `kpi_hr_head` | `kpi_hr_head_set` | 全部 |
-| 部门填报人员 | `kpi_dept_reporter` | `kpi_dept_reporter_set` | 本部门(private + 按主体共享规则) |
-| 分公司核对人员 | `kpi_branch_checker` | `kpi_branch_checker_set` | 本分公司核对任务 |
-| 分管领导 | `kpi_exec_leader` | `kpi_exec_leader_set` | 开源版按全部放行;企业版切 `unit_and_below` |
+| 部门填报人员 | `kpi_dept_reporter` | `kpi_dept_reporter_set` | 本部门(private + 动态记录共享) |
+| 分公司核对人员 | `kpi_branch_checker` | `kpi_branch_checker_set` | 本分公司核对任务(private + 动态记录共享) |
+| 分管领导 | `kpi_exec_leader` | `kpi_exec_leader_set` | 所分管主体(private + 动态记录共享) |
 
-「本部门 / 分管」深度依赖平台企业版 `hierarchy-security`;开源版用 `src/security/sharing-rules.ts`
-的按组织单元共享规则表达本部门可见,实施时按真实组织追加单元 id。
+「本部门 / 本分公司 / 分管范围」不依赖平台企业版 `hierarchy-security` 的 `unit / unit_and_below`
+深度:填报单、核对任务、数据调整、考核结果的 OWD 都是 private,可见性由方案发布时按
+「参与主体」「分管领导」「到人分工」写入的**共享规则数据**(`src/services/sharing-service.ts`)
+放宽。接入新客户组织只改数据,不改元数据。
 
 ## 业务流程(默认 4 节点,可按方案配置)
 

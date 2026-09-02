@@ -4,7 +4,7 @@ import { SheetAfterTransitionHook, SheetDeleteGuardHook, SheetInsertGuardHook, S
 import { CheckTaskAfterDecideHook, CheckTaskDecideHook } from './check-task.hook.js';
 import { PersonalItemFreezeHook, PlanChildFreezeHook, PlanChildNameHook, PlanCloneHook, PlanPublishHook } from './plan.hook.js';
 import { DisputeAfterRaiseHook, DisputeAfterResolveHook, DisputeRaiseHook, DisputeResolveHook } from './dispute.hook.js';
-import { BonusHook } from './bonus.hook.js';
+import { BonusAfterDecideHook, BonusHook } from './bonus.hook.js';
 import { AdjustmentHook } from './adjustment.hook.js';
 import { ResultSystemOnlyHook, ReviewRecordImmutableHook, SnapshotImmutableHook } from './immutable.hook.js';
 
@@ -28,6 +28,7 @@ export const allHooks: Hook[] = [
   DisputeResolveHook,
   DisputeAfterResolveHook,
   BonusHook,
+  BonusAfterDecideHook,
   AdjustmentHook,
   SnapshotImmutableHook,
   ReviewRecordImmutableHook,
