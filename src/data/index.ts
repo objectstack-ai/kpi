@@ -1,6 +1,7 @@
 import { defineSeed, SeedSchema } from '@objectstack/spec/data';
 import { Indicator, IndicatorStep } from '../objects/indicator.object.js';
 import { Plan, PlanIndicator, PlanStep, PlanSubject } from '../objects/plan.object.js';
+import { SOFTWARE_UNIT_IDS, SoftwareSeedData } from './software-profile.js';
 
 const DEV = ['dev', 'test'] as const;
 
@@ -106,10 +107,26 @@ const planIndicators = defineSeed(PlanIndicator, {
   ],
 });
 
-/**
- * 演示组织单元的 id 清单 —— 从上面的种子记录派生,不另抄一份(抄一份就会漂)。
- * 只有这些 id 才是本应用的演示夹具;管理员在 Setup 里建的单元不在其中。
- */
-export const DEMO_UNIT_IDS: readonly string[] = orgUnits.records.map((r) => String(r.id));
+/** 默认演示档案(操作手册的 62 张截图依赖它)—— 记录内容与 main 一致,不随档案切换而变。 */
+const DefaultSeedData = [orgUnits, indicators, indicatorSteps, plans, planSteps, planSubjects, planIndicators];
 
-export const KpiSeedData = [orgUnits, indicators, indicatorSteps, plans, planSteps, planSubjects, planIndicators];
+/**
+ * 种子档案选择 —— `OS_SEED_PROFILE=software` 加载「软件公司」档案,
+ * 不设(或设为其他值)时加载默认演示档案,行为与未引入档案机制时逐字一致。
+ */
+export const SEED_PROFILE: string = (process.env.OS_SEED_PROFILE ?? 'default').trim().toLowerCase();
+
+/**
+ * 演示组织单元的 id 清单 —— 从各档案的种子记录派生,不另抄一份(抄一份就会漂)。
+ * 只有这些 id 才是本应用的演示夹具;管理员在 Setup 里建的单元不在其中。
+ *
+ * 取**全部档案的并集**而不是当前档案:夹具按 `id IN (...)` 且 `organization_id IS NULL` 查,
+ * 没加载的档案其单元根本不存在,查不出行、什么都不写;并集写法则免掉「切了档案忘了切夹具、
+ * 新单元静默失去数据范围」这一类错。
+ */
+export const DEMO_UNIT_IDS: readonly string[] = [
+  ...orgUnits.records.map((r) => String(r.id)),
+  ...SOFTWARE_UNIT_IDS,
+];
+
+export const KpiSeedData = SEED_PROFILE === 'software' ? SoftwareSeedData : DefaultSeedData;
