@@ -29,11 +29,28 @@ pnpm dev             # http://localhost:3000 ;Console: /_console/ ;管理员 adm
 1 个草稿方案(4 节点流程、5 个参与主体、18 条指标下达)。用户不能种子,请在 Setup 中创建
 用户、加入组织单元并分配岗位。
 
+### 演示种子档案(`OS_SEED_PROFILE`)
+
+| 档案 | 启用方式 | 内容 |
+|---|---|---|
+| 默认(通用企业) | 不设变量 | 上面那套;操作手册的截图依赖它 |
+| 软件公司 | `OS_SEED_PROFILE=software` | 总公司 + 8 个业务部门 + 3 家销售型分公司、24 个指标(四种计分方式全覆盖)、1 个草稿季度方案(11 个参与主体、36 条指标下达) |
+
+```bash
+# 软件公司档案:空库启动 → 建岗位人员与到人分工 → 走完整流程断言
+rm -rf dist && OS_SEED_PROFILE=software pnpm dev     # 换档案必须先删 dist,构建产物会缓存选档结果
+node scripts/software-people.mjs                     # 15 个岗位账号、到人分工、个人承接项、分管领导(用户不能种子,只能运行期建)
+node scripts/software-flow.mjs [结果.json]           # 发布 → 填报 → 核对 → 审核 → 加减分 → 调整 → 汇总 → 归档 → 数据范围
+```
+
+两个脚本都读 `KPI_BASE_URL`(缺省 `http://localhost:${OS_PORT:-3000}`);`software-people.mjs` 可重复执行,
+且必须在方案仍是草稿时运行 —— 到人分工与分管领导随方案发布冻结。
+
 > ⚠️ 演示夹具的租户对齐(临时):种子写入的组织单元 `organization_id` 为空,而管理员在
 > Setup 里新建的单元会被引擎盖上当前组织;共享规则的收件方展开对这一列做等值比较,所以
 > 只有种子单元展开不出人。`src/data/align-demo-units.ts` 在 `kernel:bootstrapped` 时把这几个
-> 种子单元(且仅这几个 id、且仅 `organization_id` 为空的行、且仅 dev / test)补成与 Setup 新建
-> 单元一致。这是 objectstack-ai/objectstack#14547 的临时夹具修补,平台修复落地后请连同
+> 种子单元(且仅这几个 id —— 两套档案的单元 id 取并集、且仅 `organization_id` 为空的行、且仅
+> dev / test)补成与 Setup 新建单元一致。这是 objectstack-ai/objectstack#14547 的临时夹具修补,平台修复落地后请连同
 > `objectstack.config.ts` 里的调用一起删除。
 
 ## 角色与岗位
