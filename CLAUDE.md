@@ -37,7 +37,7 @@ pnpm dev          # http://localhost:3000 ;Console 在 /_console/ ;管理员 adm
 | A3 开发侧账号 | 当前 Claude Code 会话身份(共享 GitHub 身份,认领评论须带会话 ID) |
 | A4 验收侧处理人 | 工作项创建人 |
 | B 状态标签 | 待建:`status:待细化 / 待开发 / 方案确认中 / AI开发中 / 自测报告中 / PR审查中 / PM验收中 / 人工测试中 / 已完成 / 已打回 / 已挂起`;标记 `平台能力受限 / 人工介入 / 待复测`;类型 `回归缺陷 / 验收记录 / 试运行缺陷`;优先级 `P1 / P2 / P3`(首次使用 issue 流程前用 `gh label create` 一次建齐) |
-| C1 分支命名 | `issue-<n>-<slug>`(本次初建使用平台指定分支 `claude/standard-assessment-system-qvswav`) |
+| C1 分支命名 | `issue-<n>-<slug>`(本次初建使用平台指定分支 `claude/standard-assessment-system-qvswav`);PR 合并后 head 分支由 GitHub 自动删除(仓库设置 Automatically delete head branches,维护者 2026-09-03 启用),会话内不再用 git 删远端分支(代理拒绝) |
 | C2 worktree 目录 | 仓库外 `../kpi-<task>` |
 | C3 worktree 初始化 | `pnpm install` |
 | C4 发布级别 | ① main-only(开发期) |

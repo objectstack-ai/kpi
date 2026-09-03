@@ -19,7 +19,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "verify": "pnpm validate && pnpm typecheck && pnpm test",
-    "e2e": "node scripts/e2e-flow.mjs"
+    "e2e": "node scripts/e2e-flow.mjs",
+    "docs:docx": "node scripts/md2docx.cjs docs/00-设计方案.md docs/交付/KPI考核管理系统-设计方案-V1.0.docx"
   },
   "dependencies": {
     "@objectstack/connector-mcp": "^17.2.0",
@@ -32,6 +33,7 @@
   },
   "devDependencies": {
     "@objectstack/cli": "^17.2.0",
+    "docx": "^9.7.1",
     "typescript": "^6.0.0",
     "vitest": "^4.1.10"
   }
