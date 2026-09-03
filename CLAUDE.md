@@ -27,7 +27,7 @@ pnpm dev          # http://localhost:3000 ;Console 在 /_console/ ;管理员 adm
 - 计分口径唯一真值在 `src/lib/scoring.ts`,任何得分都经它算,禁止在视图/公式字段里二次实现;
 - 审核状态机唯一真值在 `src/hooks/sheet.hook.ts`,按钮只改状态字段,规则全在 hook;
 - 归档快照与已通过填报单只读,禁止绕过 hook 直写;
-- 不得修改 `node_modules` 内平台包;平台能力受限按 dev-issue 支线 B 上报 objectstack-ai/objectstack。
+- 不得修改 `node_modules` 内平台包;平台能力受限按 dev-issue 支线 B **只上报** objectstack-ai/objectstack(现象、最小复现、期望能力、平台版本),**不得在平台仓提交修复 PR、不得自行修复平台问题**(维护者 2026-09-03 要求);应用侧只允许带环境闸门的临时夹具,并在夹具处注明对应平台 issue,平台修复后删除。
 
 ## os-project-dev-issue 启用清单(项目实际值)
 
@@ -49,6 +49,6 @@ pnpm dev          # http://localhost:3000 ;Console 在 /_console/ ;管理员 adm
 | E2 截图归档 | 孤儿分支 `acceptance-evidence`,图链用 commit SHA 形式;**截图与证据文件禁止提交到 main 或功能分支的代码树**(`docs/evidence/` 已在 .gitignore),维护者 2026-09-02 要求 |
 | F2 合并权限 | 无——仅库级授权生效(AI 不自行合并) |
 | G1 失败升级 | 工作项评论 @ 技术负责人 |
-| G2 平台问题上报 | objectstack-ai/objectstack 仓库 issue(现象、最小复现、期望能力、平台版本) |
+| G2 平台问题上报 | objectstack-ai/objectstack 仓库 issue(现象、最小复现、期望能力、平台版本);**只上报,不修复**——不认领平台 issue、不在平台仓开 PR(维护者 2026-09-03 要求) |
 | H1 开工前必读 | 本文 + `docs/` 四份文档 |
 | H2 测试执行 | 暂不具备双实例条件:同会话自测,计划先落盘、逐条对照(dev-test 最低限度档) |
