@@ -21,7 +21,9 @@ pnpm dev          # http://localhost:3000 ;Console 在 /_console/ ;管理员 adm
 ## 项目约定
 
 - 对象机器名一律 `kpi_` 前缀(manifest namespace),字段 snake_case,配置键 camelCase;
-- 用户可见文案默认中文(对象/字段 label 直接中文;`zh-CN` 翻译包只补 en 回退),遵守
+- 用户可见文案默认中文(对象/字段 label 直接写中文;`zh-CN` 翻译包由 `pnpm i18n:extract`
+  (`os i18n extract`)从元数据 label 生成、随元数据改动重新生成、禁止手改词条,`en` 包手工
+  维护英文回退),遵守
   os-project-std-copy 四条红线:无内部代号、无异常原文、名词按需求文档 §1.4 术语表、报错三段式;
 - 数字字段四件套(小数位/最小值/最大值/单位)必须显式声明,禁用平台默认;
 - 计分口径唯一真值在 `src/lib/scoring.ts`,任何得分都经它算,禁止在视图/公式字段里二次实现;
