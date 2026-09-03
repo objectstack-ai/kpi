@@ -36,6 +36,16 @@ const OFFICERS = [
   { name: '冯薇', email: 'leader.gtm@kpi.demo', job: '分管领导(市场线)', unit: null, position: 'kpi_exec_leader' },
 ];
 
+/** 岗位机器名 → 岗位中文名(控制台输出只出现中文名,不出现机器名)。 */
+const POSITION_LABEL = {
+  kpi_admin: '考核系统管理员',
+  kpi_hr_reviewer: '人力审核',
+  kpi_hr_head: '人力负责人',
+  kpi_dept_reporter: '部门填报人员',
+  kpi_branch_checker: '分公司核对人员',
+  kpi_exec_leader: '分管领导',
+};
+
 /** 分管领导的分管范围(两位领导范围不重叠)。 */
 const LEADER_SCOPE = {
   'leader.tech@kpi.demo': ['bu_sw_rd', 'bu_sw_pd', 'bu_sw_qa'],
@@ -97,7 +107,10 @@ const withUnit = ALL.filter((p) => p.unit);
 const allMembers = withUnit.every((p) => membersAfter.some((m) => String(m.user_id) === String(byEmail.get(p.email).id) && String(m.business_unit_id) === p.unit));
 const allPositions = ALL.every((p) => positionsAfter.some((x) => String(x.user_id) === String(byEmail.get(p.email).id) && String(x.position) === p.position));
 step('组织归属已分配', allMembers, `新增 ${memberCount} 条,应有 ${withUnit.length} 条`);
-step('流程岗位已分配', allPositions, `新增 ${positionCount} 条;六类岗位:${[...new Set(ALL.map((p) => p.position))].join(', ')}`);
+const perPosition = new Map();
+for (const p of ALL) perPosition.set(p.position, (perPosition.get(p.position) ?? 0) + 1);
+const positionSummary = [...perPosition.entries()].map(([code, count]) => `${POSITION_LABEL[code] ?? code} ${count} 人`).join('、');
+step('流程岗位已分配', allPositions, `新增 ${positionCount} 条;本档案分配 ${perPosition.size} 类岗位:${positionSummary};考核系统管理员使用平台内置管理员账号,本脚本不另建`);
 
 // ── 3. 到人分工与个人承接项 ────────────────────────────────────────────────
 const planIndicators = await list('kpi_plan_indicator', `?plan=${plan.id}&limit=200`);
@@ -162,8 +175,13 @@ const covered = subjectsAfter.filter((s) => s.leader).length;
 step('分管领导已设置', leaderIds.size >= 2 && covered === 9, `${leaderIds.size} 位领导,覆盖 ${covered} 个主体(技术线 3 + 市场线 6),分管范围不重叠`);
 
 // ── 账号清单(供测试报告引用)────────────────────────────────────────────
+const unitName = new Map((await list('sys_business_unit', '?limit=200')).map((u) => [String(u.id), String(u.name)]));
 console.log('\n岗位账号清单(口令统一为 ' + DEMO_PASSWORD + '):');
-for (const p of ALL) console.log(`  ${p.name}\t${p.job}\t${p.email}\t${p.unit ?? '—'}\t${p.position}`);
+console.log('  姓名\t岗位\t账号\t组织单元\t流程岗位');
+for (const p of ALL) {
+  console.log(`  ${p.name}\t${p.job}\t${p.email}\t${p.unit ? unitName.get(p.unit) ?? p.unit : '—'}\t${POSITION_LABEL[p.position] ?? p.position}`);
+}
+console.log('  (考核系统管理员由平台内置管理员账号承担,不在本清单内。)');
 
 const failed = steps.filter((s) => !s.ok);
 console.log(`\n${JSON.stringify({ ok: steps.length - failed.length, failed: failed.length })}`);

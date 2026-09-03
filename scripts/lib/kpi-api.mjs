@@ -41,13 +41,23 @@ export const post = (object, body) => call('POST', `/data/${object}`, body);
 export const patch = (object, id, body) => call('PATCH', `/data/${object}/${id}`, body);
 export const del = (object, id) => call('DELETE', `/data/${object}/${id}`);
 
+/**
+ * 切换登录态 —— **登录失败立即抛错,绝不保留上一个身份**。
+ *
+ * 这两个脚本的控制台输出就是验收证据:如果某个账号登录失败而调用方继续往下跑,后面的断言
+ * 会以上一个身份(几乎总是管理员)执行却照样 PASS,报告里却写着「销售经理提交本部门填报单」
+ * —— 那是伪造证据。所以这里既不吞错、也不把旧 cookie 留着,直接让整轮停在失败的那一刻。
+ */
 export async function signIn(email, password = DEMO_PASSWORD) {
   const res = await fetch(BASE + '/auth/sign-in/email', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
   });
-  if (res.status === 200) cookie = (res.headers.getSetCookie() ?? []).map((c) => c.split(';')[0]).join('; ');
+  cookie = (res.headers.getSetCookie() ?? []).map((c) => c.split(';')[0]).join('; ');
+  if (res.status !== 200) {
+    throw new Error(`登录失败:${email} 在 ${BASE} 返回 HTTP ${res.status};后续步骤会以错误身份执行,已终止本轮。`);
+  }
   return res.status;
 }
 
@@ -61,8 +71,7 @@ export async function signUp(name, email, password = DEMO_PASSWORD) {
 }
 
 export async function signInAdmin() {
-  const status = await signIn('admin@objectos.ai', 'admin123');
-  if (status !== 200) throw new Error(`管理员登录失败:HTTP ${status}(检查 dev 实例是否在 ${BASE} 运行)`);
+  await signIn('admin@objectos.ai', 'admin123');
   return currentCookie();
 }
 
