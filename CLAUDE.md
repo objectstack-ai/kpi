@@ -46,7 +46,7 @@ pnpm dev          # http://localhost:3000 ;Console 在 /_console/ ;管理员 adm
 | D3 重启与清理 | 改对象/视图/hook 需重启 dev;清理 `dist/` 与 `.objectstack/` 下本实例数据库(种子数据可重建) |
 | D4 测试账号 | 管理员 admin@objectos.ai / admin123;各岗位账号在 Setup 建用户后分配岗位:人力审核、人力负责人、部门填报、分公司核对、分管领导(种子只建组织树,用户不可种子) |
 | E1 报告形态 | Markdown 测试报告挂工作项评论(模板见 os-project-dev-test) |
-| E2 截图归档 | 孤儿分支 `acceptance-evidence`,图链用 commit SHA 形式;**截图与证据文件禁止提交到 main 或功能分支的代码树**(`docs/evidence/` 已在 .gitignore),维护者 2026-09-02 要求 |
+| E2 截图归档 | 孤儿分支 `acceptance-evidence`,图链用 commit SHA 形式;**截图与证据文件禁止提交到 main 或功能分支的代码树**(`docs/evidence/` 已在 .gitignore);**例外:操作手册的配图**是手册正文的一部分,随源稿归档在 `docs/手册/图片/`(维护者 2026-09-03 决定),维护者 2026-09-02 要求 |
 | F2 合并权限 | 无——仅库级授权生效(AI 不自行合并) |
 | G1 失败升级 | 工作项评论 @ 技术负责人 |
 | G2 平台问题上报 | objectstack-ai/objectstack 仓库 issue(现象、最小复现、期望能力、平台版本);**只上报,不修复**——不认领平台 issue、不在平台仓开 PR(维护者 2026-09-03 要求) |
