@@ -1,5 +1,5 @@
 import type { Hook, HookContext } from '@objectstack/spec/data';
-import { actorId, fail, findById, hasPosition, isSystem, merged, nowIso, recordId, sys, writeReview } from './util.js';
+import { actorId, fail, findById, hasPosition, isSystem, isSystemWrite, merged, nowIso, recordId, sys, sysNoActor, writeReview } from './util.js';
 import { requiredPositionFor, STATUS_LABEL, transition, type PlanStepDef, type SheetAction, type SheetStatus } from '../lib/workflow.js';
 import { regenerateResults } from '../services/results-service.js';
 import { provisionPlanSharing } from '../services/sharing-service.js';
@@ -15,7 +15,16 @@ export async function loadPlanSteps(api: ReturnType<typeof sys>, planId: string)
   }));
 }
 
-/** 填报单由方案发布生成;非系统上下文不能手工新建。 */
+/** 流程暂存字段:按钮写进来、after 阶段清空,不承载业务数据。 */
+const SCRATCH_FIELDS = new Set(['pending_action', 'action_reason']);
+
+/**
+ * 填报单由方案发布生成;非系统上下文不能手工新建。
+ *
+ * 这里的免检仍按 `isSystem` 而不是「无发起人」:发布是**用户点**「发布方案」触发的,
+ * 生成填报单由方案 hook 以带发起人的系统上下文完成,收紧会直接打断发布。填报单
+ * 也没有任何 insert 型按钮,动作体到不了这条分支;REST 手工新建走非系统上下文,照拦。
+ */
 export const SheetInsertGuardHook: Hook = {
   name: 'kpi_sheet_insert_guard',
   label: '填报单新建保护',
@@ -53,11 +62,15 @@ export const SheetTransitionHook: Hook = {
     const action = input.pending_action as SheetAction | null | undefined;
 
     if (!action) {
-      if ('status' in input && input.status !== prev.status && !isSystem(ctx)) {
+      // 免检只给纯系统写入(无发起人)。按钮的动作体带着发起人以「受信任」身份写入,
+      // 只看 isSystem 会把它当系统写入放行(objectstack#2849),这两条锁就等于没上。
+      if ('status' in input && input.status !== prev.status && !isSystemWrite(ctx)) {
         fail('修改填报单状态失败:状态由流程推进,不能直接修改。请使用提交、审核通过、驳回或归档按钮。', 'KPI_SHEET_DIRECT_STATUS');
       }
-      if (prev.status === 'archived' && !isSystem(ctx)) {
-        const touched = Object.keys(input).filter((k) => k !== 'id' && input[k] !== prev[k]);
+      if (prev.status === 'archived' && !isSystemWrite(ctx)) {
+        // pending_action / action_reason 是流程的暂存字段,after 阶段的清场写入只动这两个,
+        // 不算「改数据」;带真实动作的写入走不到这个分支(上面 `action` 为真时已分流)。
+        const touched = Object.keys(input).filter((k) => !SCRATCH_FIELDS.has(k) && k !== 'id' && input[k] !== prev[k]);
         if (touched.length) fail('修改填报单失败:该填报单已归档,数据已锁定不可再改。', 'KPI_SHEET_ARCHIVED');
       }
       return;
@@ -69,6 +82,8 @@ export const SheetTransitionHook: Hook = {
     const result = transition(steps, fromStatus, action);
     if (!result.ok) fail(`操作失败:${result.message}`, 'KPI_SHEET_TRANSITION');
 
+    // 岗位闸:按**发起人**校验,不看写入是否带系统标记 —— 按钮路径与 REST 路径同一口径
+    // (hasPosition 的免检只留给无发起人的纯系统写入)。
     const required = requiredPositionFor(steps, fromStatus, action);
     if (!(await hasPosition(ctx, required))) {
       fail(`操作失败:当前节点「${result.atStepDef?.label ?? STATUS_LABEL[fromStatus]}」需要由对应岗位处理,你没有该岗位。如需处理,请联系管理员分配岗位。`, 'KPI_SHEET_POSITION');
@@ -171,8 +186,11 @@ export const SheetAfterTransitionHook: Hook = {
         await api.object('kpi_check_task').insert({ name: `${sheetName} · ${bu?.name ?? b.subject} 核对`, sheet: id, plan: now.plan ?? prev.plan, branch: b.subject, status: 'pending' });
       }
       if (action === 'reject') {
+        // 重置是系统动作,不是「谁把核对撤回了」:用无发起人的系统上下文写,
+        // 否则会被核对 hook 的「已确认不能撤回」按发起人拦下。
+        const sysApi = sysNoActor(ctx);
         for (const t of existing) {
-          if (t.status !== 'pending') await api.object('kpi_check_task').updateById(String(t.id), { status: 'pending', comment: null, decided_by: null, decided_at: null });
+          if (t.status !== 'pending') await sysApi.object('kpi_check_task').updateById(String(t.id), { status: 'pending', comment: null, decided_by: null, decided_at: null });
         }
       }
     }
@@ -209,6 +227,7 @@ export const SheetDeleteGuardHook: Hook = {
   events: ['beforeDelete'],
   priority: 100,
   handler: async (ctx: HookContext) => {
+    // 没有删除型按钮,动作体到不了这条分支;删除一律走非系统上下文,免检维持 isSystem。
     if (isSystem(ctx)) return;
     const prev = (ctx.previous ?? {}) as Record<string, any>;
     if (prev.status && prev.status !== 'draft') {

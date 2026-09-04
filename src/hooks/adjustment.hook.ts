@@ -1,5 +1,5 @@
 import type { Hook, HookContext } from '@objectstack/spec/data';
-import { actorId, fail, findById, hasPosition, isSystem, merged, nowIso, recordId, sys, toNumber, writeReview } from './util.js';
+import { actorId, fail, findById, hasPosition, isSystemWrite, merged, nowIso, recordId, sys, toNumber, writeReview } from './util.js';
 import { regenerateResults } from '../services/results-service.js';
 import { provisionPlanSharing } from '../services/sharing-service.js';
 
@@ -43,7 +43,9 @@ export const AdjustmentHook: Hook = {
       fail('保存调整申请失败:所选指标明细不属于该填报单。请重新选择。', 'KPI_ADJ_SHEET_MISMATCH');
     }
     const sheet = await findById(api, 'kpi_entry_sheet', line.sheet);
-    if (sheet?.status === 'archived' && !isSystem(ctx)) {
+    // 免检只给纯系统写入(无发起人):按钮的动作体带发起人以受信任身份写入,
+    // 只看 isSystem 会让「提交审批 / 批准并落地 / 否决」按钮绕过归档锁。
+    if (sheet?.status === 'archived' && !isSystemWrite(ctx)) {
       fail('保存调整申请失败:填报单已归档,数据已锁定不可再改。', 'KPI_ADJ_ARCHIVED');
     }
 
@@ -56,7 +58,7 @@ export const AdjustmentHook: Hook = {
       return;
     }
 
-    if (prev.status === 'approved' && !isSystem(ctx)) {
+    if (prev.status === 'approved' && !isSystemWrite(ctx)) {
       const touched = Object.keys(input).filter((k) => k !== 'id' && input[k] !== prev[k]);
       if (touched.length) fail('修改调整申请失败:已批准并落地的调整不能再修改。如需再次更正,请新建调整申请。', 'KPI_ADJ_LOCKED');
       return;

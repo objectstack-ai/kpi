@@ -1,5 +1,5 @@
 import type { Hook, HookContext } from '@objectstack/spec/data';
-import { actorId, fail, findById, hasPosition, isSystem, merged, nowIso, sys, toNumber } from './util.js';
+import { actorId, fail, findById, hasPosition, isSystemWrite, merged, nowIso, sys, toNumber } from './util.js';
 import { regenerateResults } from '../services/results-service.js';
 import { provisionPlanSharing } from '../services/sharing-service.js';
 
@@ -66,7 +66,9 @@ export const BonusHook: Hook = {
     const api = sys(ctx);
 
     const sheet = await findById(api, 'kpi_entry_sheet', row.sheet);
-    if (sheet?.status === 'archived' && !isSystem(ctx)) {
+    // 免检只给纯系统写入(无发起人):按钮的动作体带发起人以受信任身份写入,
+    // 只看 isSystem 会让「批准 / 否决」按钮绕过归档锁。
+    if (sheet?.status === 'archived' && !isSystemWrite(ctx)) {
       fail('修改加减分失败:填报单已归档,数据已锁定不可再改。', 'KPI_BONUS_ARCHIVED');
     }
     const points = toNumber(row.points) ?? 0;
@@ -79,7 +81,7 @@ export const BonusHook: Hook = {
         input.approved_by = actorId(ctx);
         input.approved_at = nowIso();
       }
-    } else if (ctx.event === 'beforeUpdate' && prev.status === 'approved' && !isSystem(ctx)) {
+    } else if (ctx.event === 'beforeUpdate' && prev.status === 'approved' && !isSystemWrite(ctx)) {
       const touched = Object.keys(input).filter((k) => !['id', 'signed_points'].includes(k) && input[k] !== prev[k]);
       if (touched.length) fail('修改加减分失败:已批准的加减分不能再修改。如需更正,请否决后重新申请。', 'KPI_BONUS_LOCKED');
     }
