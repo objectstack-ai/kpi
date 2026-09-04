@@ -259,7 +259,9 @@ export const ReviewRecord = ObjectSchema.create({
   pluralLabel: '审核记录',
   icon: 'history',
   description: '填报单每一次流程动作的留痕:谁、何时、从哪到哪、原因。',
-  sharingModel: 'public_read',
+  // 审计留痕同样按主体保密:审核记录上没有主体列(它只认填报单),平台共享条件不支持跨对象
+  // 遍历,所以按**填报单**建规则 —— 一张填报单只属于一个主体,粒度比按主体更细。
+  sharingModel: 'private',
   nameField: 'name',
 
   fields: {

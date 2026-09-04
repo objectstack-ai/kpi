@@ -41,7 +41,8 @@ export const Snapshot = ObjectSchema.create({
   pluralLabel: '归档快照',
   icon: 'archive',
   description: '某周期填报单归档后的不可变留存,历史查询以此为准。',
-  sharingModel: 'public_read',
+  // 快照里是某主体的最终得分与全量明细,按主体保密;可见范围由动态共享规则按主体放宽。
+  sharingModel: 'private',
   nameField: 'name',
 
   fields: {
