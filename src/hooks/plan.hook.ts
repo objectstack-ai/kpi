@@ -68,6 +68,35 @@ export function planPeriodConflictMessage(name: string): string {
   return `发布失败:该考核周期已有生效版本「${name}」。请先关闭该版本,或改用复制出的新版本替换。`;
 }
 
+/** 参与主体行里与本检查相关的三列(名称、主体、分管领导)。 */
+export interface PlanSubjectLeaderRow {
+  name?: unknown;
+  subject?: unknown;
+  leader?: unknown;
+}
+
+/**
+ * 「每个参与主体都有人能审批」—— 发布前完整性检查的一条(《设计方案》表 2 第 1 步)。
+ *
+ * 流程配了「领导审批」节点、却有主体没配分管领导时,方案照样能发布:填报单走到该节点后
+ * 不会出现在任何人的队列里,流程死在这一步。所以检查条件挂在节点上 —— 流程里没有「领导
+ * 审批」节点(节点可配置、可删)时不做此检查,免得把不走领导审批的方案也一并挡住。
+ *
+ * 纯函数:口径的唯一真值(单元测试点),hook 层只负责取数。
+ */
+export function missingLeaderProblems(steps: PlanStepDef[], subjects: PlanSubjectLeaderRow[]): string[] {
+  if (!(steps ?? []).some((s) => s?.step_type === 'leader_approve')) return [];
+  const problems: string[] = [];
+  for (const s of subjects ?? []) {
+    if (String(s?.leader ?? '').trim()) continue;
+    const label = String(s?.name ?? '').trim() || String(s?.subject ?? '');
+    problems.push(
+      `分管领导:主体「${label}」未配置分管领导,发布后其填报单走到「领导审批」节点将无人可审;请在方案的「参与主体与考核关系」里为该主体指定分管领导。`,
+    );
+  }
+  return problems;
+}
+
 async function assertPlanEditable(ctx: HookContext, planId: string | null | undefined): Promise<void> {
   if (isSystem(ctx) || !planId) return;
   const plan = await findById(sys(ctx), 'kpi_plan', planId);
@@ -217,6 +246,9 @@ export const PlanPublishHook: Hook = {
         }
       }
     }
+    // 每个参与主体都要有人能审批:流程含「领导审批」节点时,主体必须配分管领导(#29)。
+    problems.push(...missingLeaderProblems(steps, subjects as PlanSubjectLeaderRow[]));
+
     const subjectIds = new Set(subjects.map((s: Record<string, any>) => String(s.subject)));
     for (const key of bySubject.keys()) {
       if (!subjectIds.has(key)) problems.push(`指标下达:存在下达给未参与主体(${key})的指标,请先把该主体加入参与主体或删除下达`);

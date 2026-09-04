@@ -46,9 +46,15 @@ const POSITION_LABEL = {
   kpi_exec_leader: '分管领导',
 };
 
-/** 分管领导的分管范围(两位领导范围不重叠)。 */
+/**
+ * 分管领导的分管范围(两位领导范围不重叠,且必须覆盖方案的全部 11 个参与主体)。
+ *
+ * 发布前完整性检查要求「流程含领导审批节点时,每个参与主体都要配分管领导」,否则填报单
+ * 会停在领导审批节点无人可审;演示档案只设两位分管领导,财务部与人力行政部这两个职能
+ * 后台主体并入技术线领导的分管范围,不额外新增账号。
+ */
 const LEADER_SCOPE = {
-  'leader.tech@kpi.demo': ['bu_sw_rd', 'bu_sw_pd', 'bu_sw_qa'],
+  'leader.tech@kpi.demo': ['bu_sw_rd', 'bu_sw_pd', 'bu_sw_qa', 'bu_sw_fin', 'bu_sw_hr'],
   'leader.gtm@kpi.demo': ['bu_sw_sales', 'bu_sw_mkt', 'bu_sw_cs', 'bu_sw_east', 'bu_sw_south', 'bu_sw_north'],
 };
 
@@ -172,7 +178,8 @@ for (const [email, units] of Object.entries(LEADER_SCOPE)) {
 const subjectsAfter = await list('kpi_plan_subject', `?plan=${plan.id}&limit=100`);
 const leaderIds = new Set(subjectsAfter.map((s) => String(s.leader ?? '')).filter(Boolean));
 const covered = subjectsAfter.filter((s) => s.leader).length;
-step('分管领导已设置', leaderIds.size >= 2 && covered === 9, `${leaderIds.size} 位领导,覆盖 ${covered} 个主体(技术线 3 + 市场线 6),分管范围不重叠`);
+step('分管领导已设置', leaderIds.size >= 2 && covered === subjectsAfter.length,
+  `${leaderIds.size} 位领导,覆盖 ${covered}/${subjectsAfter.length} 个主体(分管范围不重叠;发布前完整性检查要求主体全覆盖,缺一个都发布不了)`);
 
 // ── 账号清单(供测试报告引用)────────────────────────────────────────────
 const unitName = new Map((await list('sys_business_unit', '?limit=200')).map((u) => [String(u.id), String(u.name)]));
