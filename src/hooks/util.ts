@@ -36,6 +36,25 @@ export function sys(ctx: HookContext): Api {
   return api.sudo ? api.sudo() : api;
 }
 
+/**
+ * 无发起人的系统上下文:在 `sudo()` 的基础上摘掉发起用户,租户与事务信息原样保留。
+ *
+ * 给 hook **内部**自发的写入用(核对全部完成后自动推进填报单、驳回时重置核对任务)。
+ * 这类写入不是任何人「点」出来的,按发起人校验岗位既没有对象也没有意义 —— 摘掉发起人
+ * 让它落在 {@link isSystemWrite} 这一侧,规则明确免检,而不是靠「恰好这个人有那个岗位」
+ * 蒙混过关(节点审核岗位是按方案配置的,见《设计方案》10.1 第 9 条)。
+ */
+export function sysNoActor(ctx: HookContext): Api {
+  const api = ctx.api as unknown as (Api & { sudo?: () => Api }) | undefined;
+  if (!api) fail('系统内部错误:数据访问上下文不可用,请稍后重试或联系管理员。', 'KPI_NO_API');
+  if (!api.sudo) return api;
+  const elevated = api.sudo() as Api & { executionContext?: Record<string, unknown> };
+  if (elevated && typeof elevated === 'object' && elevated.executionContext) {
+    elevated.executionContext = { ...elevated.executionContext, isSystem: true, userId: undefined };
+  }
+  return elevated;
+}
+
 /** 以当前用户上下文访问(受数据范围约束)。 */
 export function user(ctx: HookContext): Api {
   const api = ctx.api as unknown as Api | undefined;
@@ -51,6 +70,20 @@ export function actorId(ctx: HookContext): string | null {
   return (ctx.user?.id as string | undefined) ?? (ctx.session?.userId as string | undefined) ?? null;
 }
 
+/**
+ * 是否是**纯系统写入** —— 带系统标记**并且**没有发起用户。
+ *
+ * 为什么不能只看 `isSystem`:平台执行动作体(按钮)时用的上下文是
+ * `{ ...调用者上下文, isSystem: true }`,发起人的 `userId` 原样保留。也就是说
+ * 「用户点了按钮」和「系统自己写」在 `isSystem` 这一位上完全一样,只用它做闸,
+ * 任何岗位的人点按钮都会被当成系统写入放行(objectstack-ai/objectstack#2849)。
+ * 真正的系统写入 —— 种子、脚本、hook 内部自动推进 —— 是**没有发起人**的,
+ * 这一位才把两者分得开。
+ */
+export function isSystemWrite(ctx: HookContext): boolean {
+  return isSystem(ctx) && actorId(ctx) === null;
+}
+
 /** 当前记录的合并视图(更新时 = 旧记录 + 本次改动)。 */
 export function merged<T = Record<string, any>>(ctx: HookContext): T {
   return { ...((ctx.previous ?? {}) as Record<string, unknown>), ...((ctx.input ?? {}) as Record<string, unknown>) } as T;
@@ -63,10 +96,14 @@ export function recordId(ctx: HookContext): string | null {
 
 /**
  * 是否持有岗位(业务规则,经 ctx.api 通道查询 sys_user_position;平台明示
- * session.positions 只作描述、不作授权输入)。系统上下文放行;`kpi_admin` 通行。
+ * session.positions 只作描述、不作授权输入)。`kpi_admin` 通行。
+ *
+ * 免检只留给**纯系统写入**({@link isSystemWrite}:有系统标记且没有发起人)。
+ * 带发起人的写入一律按发起人校验 —— 无论它是从 REST 直接进来的,还是经按钮的
+ * 动作体以「受信任」身份进来的,两条路径同一口径。
  */
 export async function hasPosition(ctx: HookContext, position: string | null): Promise<boolean> {
-  if (isSystem(ctx) || !position) return true;
+  if (!position || isSystemWrite(ctx)) return true;
   const uid = actorId(ctx);
   if (!uid) return false;
   const api = sys(ctx);
