@@ -11,9 +11,11 @@ import {
   provisionPlanSharing,
   ruleSlug,
   type AssignmentRow,
+  type SheetRow,
   type SubjectRow,
 } from '../src/services/sharing-service.js';
 import type { Api } from '../src/hooks/util.js';
+import { BranchCheckerPermissionSet, DeptReporterPermissionSet, ExecLeaderPermissionSet } from '../src/security/index.js';
 import { isDemoEnvironment, resolveEnvironmentMode } from '../src/data/align-demo-units.js';
 import { backfillPlanLinks, registerPlanLinkBackfill, type BackfillHostContext } from '../src/data/backfill-plan-links.js';
 
@@ -23,6 +25,10 @@ const SUBJECTS: SubjectRow[] = [
   { subject: 'bu_east', subject_type: 'branch', name: '华东分公司', leader: null },
 ];
 const ASSIGNMENTS: AssignmentRow[] = [{ employee: 'usr_XYZ-789', unit: 'bu_market' }];
+const SHEETS: SheetRow[] = [
+  { id: 'sheet_market', subject: 'bu_market', name: '2026Q1 · 市场部' },
+  { id: 'sheet_east', subject: 'bu_east', name: '2026Q1 · 华东分公司' },
+];
 
 describe('规则名片段', () => {
   it('合规的单元 id 原样保留,便于管理员在 Setup 里辨认', () => {
@@ -127,6 +133,107 @@ describe('按方案配置推导数据范围规则', () => {
   });
 });
 
+describe('配置与审计类对象按主体过滤(各部门目标值互相保密)', () => {
+  const intents = planSharingIntents(PLAN, SUBJECTS, ASSIGNMENTS, 'published', SHEETS);
+  const byName = new Map(intents.map((i) => [i.name, i]));
+  const P = planRulePrefix(PLAN);
+  const L = ruleSlug('usr_ABC-123');
+
+  it('参与主体 / 指标下达 / 到人分工 / 归档快照:本单元及其下级只读', () => {
+    expect(byName.get(`${P}psub_bu_market`)).toMatchObject({
+      object: 'kpi_plan_subject', criteria: { plan: PLAN, subject: 'bu_market' }, recipientType: 'unit_and_subordinates', recipientId: 'bu_market', accessLevel: 'read',
+    });
+    expect(byName.get(`${P}pind_bu_market`)).toMatchObject({
+      object: 'kpi_plan_indicator', criteria: { plan: PLAN, subject: 'bu_market' }, recipientType: 'unit_and_subordinates', accessLevel: 'read',
+    });
+    // 到人分工的单元列叫 unit,不叫 subject —— 条件写错列名会静默匹配不到任何记录
+    expect(byName.get(`${P}assign_bu_market`)).toMatchObject({
+      object: 'kpi_staff_assignment', criteria: { plan: PLAN, unit: 'bu_market' }, accessLevel: 'read',
+    });
+    expect(byName.get(`${P}snap_bu_market`)).toMatchObject({
+      object: 'kpi_snapshot', criteria: { plan: PLAN, subject: 'bu_market' }, accessLevel: 'read',
+    });
+  });
+
+  it('分管领导拿到所分管主体的同样四类(他不是该单元成员,少了这族规则就是空的)', () => {
+    for (const [key, object] of [['psub', 'kpi_plan_subject'], ['pind', 'kpi_plan_indicator'], ['assign', 'kpi_staff_assignment'], ['snap', 'kpi_snapshot']] as const) {
+      expect(byName.get(`${P}${key}_leader_bu_market_${L}`)).toMatchObject({ object, recipientType: 'user', recipientId: 'usr_ABC-123', accessLevel: 'read' });
+    }
+    // 华东没配分管领导 → 不产生领导规则
+    expect(intents.some((i) => i.recipientType === 'user' && i.name.includes('bu_east'))).toBe(false);
+  });
+
+  it('审核记录按填报单建规则 —— 它没有主体列,平台共享条件又不支持跨对象遍历', () => {
+    expect(byName.get(`${P}review_sheet_market`)).toMatchObject({
+      object: 'kpi_review_record', criteria: { sheet: 'sheet_market' }, recipientType: 'unit_and_subordinates', recipientId: 'bu_market', accessLevel: 'read',
+    });
+    expect(byName.get(`${P}review_leader_sheet_market_${L}`)).toMatchObject({
+      object: 'kpi_review_record', criteria: { sheet: 'sheet_market' }, recipientType: 'user', recipientId: 'usr_ABC-123',
+    });
+    // 华东那张单的规则收件方是华东,不是市场部 —— 隔离的粒度是填报单
+    expect(byName.get(`${P}review_sheet_east`)?.recipientId).toBe('bu_east');
+  });
+
+  it('被核对的部门能看到自己填报单上的核对进展(只读,不与核对方的可编辑规则冲突)', () => {
+    expect(byName.get(`${P}scheck_sheet_market`)).toMatchObject({
+      object: 'kpi_check_task', criteria: { plan: PLAN, sheet: 'sheet_market' }, recipientType: 'unit_and_subordinates', recipientId: 'bu_market', accessLevel: 'read',
+    });
+    // 核对方那条按分公司的可编辑规则原样还在
+    expect(byName.get(`${P}check_bu_east`)?.accessLevel).toBe('edit');
+  });
+
+  it('分公司主体不拿这条 —— 它自己那张单上挂着全部分公司的核对任务,给了就是越权', () => {
+    // 「分公司核对人员只开放本分公司相关行」是拍板口径,与「主体方看自己单上的核对进展」
+    // 冲突时取窄的那条
+    expect(byName.has(`${P}scheck_sheet_east`)).toBe(false);
+    expect(byName.has(`${P}review_sheet_east`)).toBe(true);
+  });
+
+  it('每条规则的条件都收窄到本方案 —— 要么带方案 id,要么带比方案更细的填报单 id', () => {
+    for (const i of intents) {
+      const scoped = i.criteria.plan === PLAN || (typeof i.criteria.sheet === 'string' && i.criteria.sheet !== '');
+      expect(scoped, `规则 ${i.name} 的条件既没带方案也没带填报单`).toBe(true);
+    }
+  });
+
+  it('这六类一律只读:方案关闭前后都不变(降级只影响可编辑的那三类)', () => {
+    const live = planSharingIntents(PLAN, SUBJECTS, ASSIGNMENTS, 'published', SHEETS);
+    const closed = planSharingIntents(PLAN, SUBJECTS, ASSIGNMENTS, 'closed', SHEETS);
+    const scopeKeys = ['psub_', 'pind_', 'assign_', 'snap_', 'review_', 'scheck_'];
+    const pick = (list: typeof intents) => list.filter((i) => scopeKeys.some((k) => i.name.startsWith(`${P}${k}`)));
+    expect(pick(live).length).toBeGreaterThan(0);
+    for (const i of [...pick(live), ...pick(closed)]) expect(i.accessLevel).toBe('read');
+    expect(pick(closed).map((i) => i.name)).toEqual(pick(live).map((i) => i.name));
+  });
+
+  it('不传填报单时不产生按单规则 —— 方案还没发布就没有填报单', () => {
+    const before = planSharingIntents(PLAN, SUBJECTS, ASSIGNMENTS);
+    expect(before.some((i) => i.object === 'kpi_review_record')).toBe(false);
+    expect(before.some((i) => i.name.startsWith(`${P}scheck_`))).toBe(false);
+    // 主体维度的四类不依赖填报单,照常产出
+    expect(before.some((i) => i.name === `${P}pind_bu_market`)).toBe(true);
+  });
+
+  it('撤掉参与主体:该单元的按主体与按填报单规则一条都不再出现(对账会停用它们)', () => {
+    const after = planSharingIntents(PLAN, [SUBJECTS[1]!], [], 'published', [SHEETS[1]!]);
+    expect(after.some((i) => i.name.includes('bu_market'))).toBe(false);
+    expect(after.some((i) => i.criteria.sheet === 'sheet_market')).toBe(false);
+  });
+
+  it('规则名仍在 100 以内:填报单 id 也是超长的最坏形态', () => {
+    const plan = 'p'.repeat(64);
+    const unit = 'u'.repeat(64);
+    const leader = 'l'.repeat(64);
+    const names = planSharingIntents(plan, [{ subject: unit, name: '超长单元', leader }], [], 'published', [{ id: 's'.repeat(64), subject: unit }]).map((i) => i.name);
+    expect(names.some((n) => n.includes('review_leader_'))).toBe(true);
+    for (const name of names) {
+      expect(name.length, name).toBeLessThanOrEqual(RULE_NAME_MAX);
+      expect(name).toMatch(/^[a-z0-9_]+$/);
+    }
+    expect(Math.max(...names.map((n) => n.length))).toBe(99);
+  });
+});
+
 describe('对账:换人 / 撤主体后旧规则不再出现在目标集合里', () => {
   const P = planRulePrefix(PLAN);
   const oldLeader = ruleSlug('usr_ABC-123');
@@ -175,6 +282,46 @@ describe('已关闭 / 已归档方案:留读、去写', () => {
     const closed = planSharingIntents(PLAN, SUBJECTS, ASSIGNMENTS, 'closed').map((i) => i.name);
     const live = planSharingIntents(PLAN, SUBJECTS, ASSIGNMENTS, 'published').map((i) => i.name);
     expect(closed).toEqual(live);
+  });
+});
+
+
+describe('主从子表的读授权:到人分工放开了,个人承接项就不能漏', () => {
+  // 「随主记录收窄」是 OWD `controlled_by_parent` 的事,它只决定**哪些行**;能不能读这张
+  // 表本身仍要权限集给出 CRUD 位。三个受限岗位拿到到人分工的 `own` 授权后若漏了子表,
+  // 详情页展开主从子表就是 403 —— 用户看到的是报错页面,不是空表。
+  const SETS = [
+    ['部门填报人员', DeptReporterPermissionSet],
+    ['分公司核对人员', BranchCheckerPermissionSet],
+    ['分管领导', ExecLeaderPermissionSet],
+  ] as const;
+
+  it('声明了到人分工的岗位,必定同时声明个人承接项', () => {
+    for (const [label, set] of SETS) {
+      const objects = set.objects as Record<string, { allowRead?: boolean } | undefined>;
+      expect(objects.kpi_staff_assignment?.allowRead, `${label} 缺到人分工授权`).toBe(true);
+      expect(objects.kpi_personal_item?.allowRead, `${label} 声明了到人分工却漏了个人承接项`).toBe(true);
+    }
+  });
+
+  // 只覆盖本次新收窄的两个岗位:部门填报人员的个人承接项授权是本次之前就有的
+  // (`readScope: 'org'`),动它属于扩围,留给需要时另立工作项。
+  it('新收窄的两个岗位:个人承接项与到人分工同范围,没有放宽到全量', () => {
+    for (const [label, set] of [SETS[1], SETS[2]] as const) {
+      const objects = set.objects as Record<string, { readScope?: string } | undefined>;
+      expect(objects.kpi_personal_item?.readScope, `${label} 的个人承接项范围与到人分工不一致`)
+        .toBe(objects.kpi_staff_assignment?.readScope);
+      expect(objects.kpi_personal_item?.readScope).toBe('own');
+    }
+  });
+
+  it('个人承接项一律只读 —— 承接权重与个人目标值归方案配置,不由这三个岗位改', () => {
+    for (const [label, set] of SETS) {
+      const item = (set.objects as Record<string, Record<string, unknown> | undefined>).kpi_personal_item ?? {};
+      for (const bit of ['allowCreate', 'allowEdit', 'allowDelete']) {
+        expect(item[bit] ?? false, `${label} 的个人承接项不该有 ${bit}`).toBe(false);
+      }
+    }
   });
 });
 
@@ -273,6 +420,7 @@ interface FakeApiOptions {
   planStatus?: string;
   subjects?: SubjectRow[];
   assignments?: AssignmentRow[];
+  sheets?: SheetRow[];
   units?: Record<string, string | null>;
   rules?: Array<Record<string, any>>;
 }
@@ -288,6 +436,7 @@ function fakeSharingApi(options: FakeApiOptions = {}): { api: Api; rules: Array<
           const where = (query.where ?? {}) as Record<string, any>;
           if (name === 'kpi_plan_subject') return options.subjects ?? SUBJECTS;
           if (name === 'kpi_staff_assignment') return options.assignments ?? ASSIGNMENTS;
+          if (name === 'kpi_entry_sheet') return options.sheets ?? [];
           if (name === 'sys_sharing_rule') return rules.filter((r) => r.organization_id === where.organization_id);
           return [];
         },
@@ -320,6 +469,32 @@ function fakeSharingApi(options: FakeApiOptions = {}): { api: Api; rules: Array<
   } as unknown as Api;
   return { api, rules };
 }
+
+describe('按对象 / 按填报单收窄重申', () => {
+  it('只重申某一张填报单的规则 —— 插一条审核记录不该把全方案的单都重新物化一遍', async () => {
+    const { api, rules } = fakeSharingApi({ sheets: SHEETS });
+    await provisionPlanSharing(api, PLAN, { objects: ['kpi_review_record'], sheets: ['sheet_market'] });
+    const written = rules.map((r) => r.name as string);
+    expect(written.every((n) => n.includes('review_'))).toBe(true);
+    expect(written.some((n) => n.includes('sheet_market'))).toBe(true);
+    expect(written.some((n) => n.includes('sheet_east'))).toBe(false);
+  });
+
+  it('不带 sheets 时按对象重申全部填报单的规则', async () => {
+    const { api, rules } = fakeSharingApi({ sheets: SHEETS });
+    await provisionPlanSharing(api, PLAN, { objects: ['kpi_review_record'] });
+    const written = rules.map((r) => r.name as string);
+    expect(written.some((n) => n.includes('sheet_market'))).toBe(true);
+    expect(written.some((n) => n.includes('sheet_east'))).toBe(true);
+  });
+
+  it('按对象收窄不影响不带 sheet 条件的规则', async () => {
+    const { api, rules } = fakeSharingApi({ sheets: SHEETS });
+    await provisionPlanSharing(api, PLAN, { objects: ['kpi_plan_indicator'], sheets: ['sheet_market'] });
+    expect(rules.length).toBeGreaterThan(0);
+    for (const r of rules) expect(String(r.object_name)).toBe('kpi_plan_indicator');
+  });
+});
 
 describe('对账:停用旧式 kpi_share_* 规则', () => {
   it('存在旧规则 → 停用(并盖上对账标记,行保留不删)', async () => {

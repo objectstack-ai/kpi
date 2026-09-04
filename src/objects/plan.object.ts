@@ -139,7 +139,11 @@ export const PlanSubject = ObjectSchema.create({
   pluralLabel: '参与主体',
   icon: 'building',
   description: '方案的考核主体、考核部门、主体权重与分管领导。',
-  sharingModel: 'controlled_by_parent',
+  // 各部门目标值互相保密(维护者 2026-09-03 拍板):OWD 必须是 private —— 平台共享层把
+  // `controlled_by_parent` 归入 public(plugin-sharing `effectiveSharingModel`),读侧过滤
+  // 会在第一道闸门直接放行,权限集里的 readScope 也随之失效。本部门 / 本分公司 / 分管范围
+  // 的可见性由方案发布时写入的动态共享规则(services/sharing-service.ts)按主体放宽。
+  sharingModel: 'private',
   nameField: 'name',
 
   fields: {
@@ -174,7 +178,9 @@ export const PlanIndicator = ObjectSchema.create({
   pluralLabel: '指标下达',
   icon: 'list-checks',
   description: '把指标分配到考核主体,并给定权重与目标值。',
-  sharingModel: 'controlled_by_parent',
+  // 目标值与权重是本次保密口径的核心对象,理由同「参与主体」:OWD 收成 private,
+  // 按主体的可见范围交给动态共享规则。
+  sharingModel: 'private',
   nameField: 'name',
 
   fields: {
@@ -274,7 +280,9 @@ export const StaffAssignment = ObjectSchema.create({
   pluralLabel: '到人分工',
   icon: 'users',
   description: '员工与部门板块的对应关系及其权重、个人系数。',
-  sharingModel: 'controlled_by_parent',
+  // 理由同「参与主体」:OWD 收成 private,按部门板块的可见范围交给动态共享规则。
+  // 个人承接项(kpi_personal_item)仍是本对象的主从子记录,随主记录一起收窄。
+  sharingModel: 'private',
   nameField: 'name',
 
   fields: {
