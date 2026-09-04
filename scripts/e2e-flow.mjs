@@ -228,18 +228,82 @@ const market3 = sheets3.find((x) => x.name.includes('市场部'));
 const east3 = sheets3.find((x) => x.name.includes('华东分公司'));
 log('T38', '发布第三版方案(市场部已配分管领导)生成 5 张填报单', sheets3.length === 5 && !!market3 && !!east3, `${msg(r).slice(0, 80)} sheets=${sheets3.length}`);
 
-const rulesOf = async (planId) => (await list('sys_sharing_rule', '?limit=500')).filter((x) => String(x.criteria_json ?? '').includes(planId) && x.active !== false);
+// 一个方案名下的全部共享规则,按**规则名前缀**回收。
+//
+// 不按「条件里含方案 id」筛:审核记录对象上没有方案列(它只认填报单),而平台的共享条件
+// 只认对象自己的列、不支持跨对象遍历,所以那批规则的条件是 `{sheet}` —— 含方案 id 的过滤
+// 会把它们整批漏掉,数出来的条数偏少,「每条都带方案 id」的断言也跟着空过。方案归属由规则
+// 名前缀保证(services/sharing-service.ts 的 planRulePrefix)。
+//
+// 前缀里的方案片段是稳定散列,脚本**不复刻**那套算法(复刻就会和实现两地各飘一份):改从
+// 一条必然存在的锚点规则上反推 —— 每个参与主体都有一条 `<前缀>sheet_<单元>` 规则。锚不到
+// 就返回空数组,让调用方的精确相等断言当场变红,而不是悄悄退化成「零条也算过」。
+// 共享规则要**翻页**取全,不能一把 `?limit=500` 了事:一个方案现在就写近百条规则,几个
+// 方案下来轻松过 500 —— 截断的症状是某条规则「凭空消失」,断言红在一个与截断毫无关系的
+// 地方(本次就是 T70 数出 3 条岗位规则而不是 4 条),排查成本远高于这几行。
+const allSharingRules = async () => {
+  const out = [];
+  for (let skip = 0; ; skip += 500) {
+    const r = await call('GET', `/data/sys_sharing_rule?limit=500&skip=${skip}`);
+    const page = rows(r);
+    out.push(...page);
+    if (page.length < 500 || r.json?.hasMore === false) break;
+  }
+  return out;
+};
+
+const rulesOf = async (planId) => {
+  const all = await allSharingRules();
+  const subs = await list('kpi_plan_subject', `?plan=${planId}&limit=50`);
+  let prefix = null;
+  for (const sub of subs) {
+    const suffix = `sheet_${sub.subject}`;
+    const anchor = all.find((x) => x.object_name === 'kpi_entry_sheet' && x.recipient_type === 'unit_and_subordinates'
+      && x.recipient_id === sub.subject && String(x.name ?? '').endsWith(suffix)
+      && String(x.criteria_json ?? '').includes(planId));
+    if (anchor) { prefix = String(anchor.name).slice(0, -suffix.length); break; }
+  }
+  if (!prefix) return [];
+  return all.filter((x) => String(x.name ?? '').startsWith(prefix) && x.active !== false);
+};
 const kpiRules = await rulesOf(plan3.id);
-// 推导条数(不是下限):5 个参与主体 × 4 类(填报单 / 核对任务 / 调整 / 结果)= 20,
-// 每个配了分管领导的主体 → +2(该主体填报单、该主体结果),每位分管领导 → +1(本人结果),
-// 2 条到人分工 → +2,人力岗位 2 个 × 2 类(填报单 / 调整)→ +4。
+// 推导条数(不是下限):
+//   · 每个参与主体 8 类 —— 填报单 / 核对任务 / 调整 / 结果,加上按主体保密的
+//     参与主体 / 指标下达 / 到人分工 / 归档快照;
+//   · 每个配了分管领导的主体 → +6(该主体填报单、该主体结果,加上后四类给领导);
+//   · 每位分管领导 → +1(本人结果);2 条到人分工 → +2;人力岗位 2 个 × 2 类 → +4;
+//   · 每张填报单 → +1(该单的审核记录),其主体配了分管领导再 +1;
+//   · 主体类型为「总公司部门」的那张单 → +1(本单核对任务给被核对的部门),配了分管领导再 +1。
+//     分公司主体不建这条:它自己那张单上挂着全部分公司的核对任务,给了就等于让华东看见华南。
 // 分管领导按方案实配推导:全部主体都要配分管领导(发布前完整性检查),市场部配的是 C,
 // 其余主体沿用复制自上一版的管理员账号。
 const subs3After = await list('kpi_plan_subject', `?plan=${plan3.id}&limit=50`);
 const leaderSubs3 = subs3After.filter((x) => x.leader);
-const EXPECTED_RULES = 5 * 4 + leaderSubs3.length * 2 + new Set(leaderSubs3.map((x) => String(x.leader))).size + 2 + 2 * 2;
+const leaderUnits3 = new Set(leaderSubs3.map((x) => String(x.subject)));
+const deptSubs3 = subs3After.filter((x) => x.subject_type === 'department');
+const leaderSheets3 = sheets3.filter((x) => leaderUnits3.has(String(x.subject))).length;
+const deptLeaderSubs3 = deptSubs3.filter((x) => leaderUnits3.has(String(x.subject))).length;
+const EXPECTED_RULES = subs3After.length * 8 + leaderSubs3.length * 6 + new Set(leaderSubs3.map((x) => String(x.leader))).size + 2 + 2 * 2
+  + sheets3.length + leaderSheets3 + deptSubs3.length + deptLeaderSubs3;
+// 条件落在填报单上(而不是方案上)的那批 = 审核记录规则:每张单一条,主体配了领导再一条。
+// 本单核对任务的条件同时带方案与填报单,算在「带方案 id」那边。
+const EXPECTED_SHEET_SCOPED = sheets3.length + leaderSheets3;
 log('T39', '发布按方案配置写入动态共享规则,条数与方案配置精确相符,元数据零改动', kpiRules.length === EXPECTED_RULES && kpiRules.some((x) => x.object_name === 'kpi_entry_sheet' && x.recipient_type === 'unit_and_subordinates' && x.recipient_id === 'bu_market') && kpiRules.some((x) => x.recipient_type === 'user' && x.recipient_id === U.c.id && x.object_name === 'kpi_entry_sheet'), `rules=${kpiRules.length} expected=${EXPECTED_RULES}`);
-log('T39b', '规则条件按方案隔离:每条规则的条件里都带本方案 id', kpiRules.length > 0 && kpiRules.every((x) => { try { return JSON.parse(x.criteria_json).plan === plan3.id; } catch { return false; } }), `${kpiRules.length} 条`);
+// 条件按方案隔离:要么直接带本方案 id,要么带**本方案某张填报单**的 id(审核记录对象上
+// 没有方案列;一张填报单只属于一个方案的一个主体,粒度比方案更细)。两类条数都精确相等,
+// 任何一类落空或出现第三类(条件既不带方案也不带本方案的单)都判红。
+const sheetIds3 = new Set(sheets3.map((x) => String(x.id)));
+const scopeOf3 = (x) => {
+  let c;
+  try { c = JSON.parse(x.criteria_json); } catch { return 'other'; }
+  if (c && c.plan === plan3.id) return 'plan';
+  if (c && typeof c.sheet === 'string' && sheetIds3.has(c.sheet)) return 'sheet';
+  return 'other';
+};
+const scoped3 = kpiRules.map(scopeOf3);
+const byPlan3 = scoped3.filter((k) => k === 'plan').length;
+const bySheet3 = scoped3.filter((k) => k === 'sheet').length;
+log('T39b', '规则条件按方案隔离:要么带本方案 id,要么带本方案填报单的 id(审核记录对象没有方案列)', kpiRules.length > 0 && byPlan3 + bySheet3 === kpiRules.length && bySheet3 === EXPECTED_SHEET_SCOPED && byPlan3 > 0, `按方案 ${byPlan3} 条 / 按填报单 ${bySheet3} 条(期望 ${EXPECTED_SHEET_SCOPED})/ 共 ${kpiRules.length} 条`);
 const sheetShared = await waitUntil('市场部填报单共享给 A', async () => {
   const rowsNow = await list('sys_record_share', '?limit=500');
   return rowsNow.some((x) => x.object_name === 'kpi_entry_sheet' && x.record_id === market3.id && x.recipient_type === 'user' && x.recipient_id === U.a.id && x.access_level === 'edit');
@@ -313,7 +377,7 @@ sheet3 = await get('kpi_entry_sheet', market3.id);
 log('T49', '否决加减分后立即重算,被否决的分不计入部门结果', r.status < 300 && !!afterReject && Number(afterReject.score) === Number(after3.score) && Number(afterReject.score) === Number(sheet3.total_score), `after_reject=${afterReject?.score} expected=${after3?.score} sheet_total=${sheet3.total_score} ${msg(r).slice(0, 80)}`);
 
 // 验收 7:静态共享规则文件已删除(元数据零改动的前提)
-const staticRules = await list('sys_sharing_rule', '?limit=500');
+const staticRules = await allSharingRules();
 const kpiOwned = staticRules.filter((x) => String(x.name).startsWith('kpi_p') || String(x.name).startsWith('kpi_share_'));
 log('T50', '不存在方案发布之外来源的 KPI 共享规则(静态规则文件已删除,也没有旧的按单元规则)', kpiOwned.length > 0 && kpiOwned.every((x) => x.managed_by !== 'package') && !kpiOwned.some((x) => String(x.name).startsWith('kpi_share_')), `${kpiOwned.length} 条,示例 ${kpiOwned.slice(0, 2).map((x) => `${x.name}:${x.managed_by}`).join(' | ')}`);
 

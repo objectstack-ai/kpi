@@ -15,6 +15,7 @@ import {
   type SubjectRow,
 } from '../src/services/sharing-service.js';
 import type { Api } from '../src/hooks/util.js';
+import { BranchCheckerPermissionSet, DeptReporterPermissionSet, ExecLeaderPermissionSet } from '../src/security/index.js';
 import { isDemoEnvironment, resolveEnvironmentMode } from '../src/data/align-demo-units.js';
 import { backfillPlanLinks, registerPlanLinkBackfill, type BackfillHostContext } from '../src/data/backfill-plan-links.js';
 
@@ -281,6 +282,46 @@ describe('已关闭 / 已归档方案:留读、去写', () => {
     const closed = planSharingIntents(PLAN, SUBJECTS, ASSIGNMENTS, 'closed').map((i) => i.name);
     const live = planSharingIntents(PLAN, SUBJECTS, ASSIGNMENTS, 'published').map((i) => i.name);
     expect(closed).toEqual(live);
+  });
+});
+
+
+describe('主从子表的读授权:到人分工放开了,个人承接项就不能漏', () => {
+  // 「随主记录收窄」是 OWD `controlled_by_parent` 的事,它只决定**哪些行**;能不能读这张
+  // 表本身仍要权限集给出 CRUD 位。三个受限岗位拿到到人分工的 `own` 授权后若漏了子表,
+  // 详情页展开主从子表就是 403 —— 用户看到的是报错页面,不是空表。
+  const SETS = [
+    ['部门填报人员', DeptReporterPermissionSet],
+    ['分公司核对人员', BranchCheckerPermissionSet],
+    ['分管领导', ExecLeaderPermissionSet],
+  ] as const;
+
+  it('声明了到人分工的岗位,必定同时声明个人承接项', () => {
+    for (const [label, set] of SETS) {
+      const objects = set.objects as Record<string, { allowRead?: boolean } | undefined>;
+      expect(objects.kpi_staff_assignment?.allowRead, `${label} 缺到人分工授权`).toBe(true);
+      expect(objects.kpi_personal_item?.allowRead, `${label} 声明了到人分工却漏了个人承接项`).toBe(true);
+    }
+  });
+
+  // 只覆盖本次新收窄的两个岗位:部门填报人员的个人承接项授权是本次之前就有的
+  // (`readScope: 'org'`),动它属于扩围,留给需要时另立工作项。
+  it('新收窄的两个岗位:个人承接项与到人分工同范围,没有放宽到全量', () => {
+    for (const [label, set] of [SETS[1], SETS[2]] as const) {
+      const objects = set.objects as Record<string, { readScope?: string } | undefined>;
+      expect(objects.kpi_personal_item?.readScope, `${label} 的个人承接项范围与到人分工不一致`)
+        .toBe(objects.kpi_staff_assignment?.readScope);
+      expect(objects.kpi_personal_item?.readScope).toBe('own');
+    }
+  });
+
+  it('个人承接项一律只读 —— 承接权重与个人目标值归方案配置,不由这三个岗位改', () => {
+    for (const [label, set] of SETS) {
+      const item = (set.objects as Record<string, Record<string, unknown> | undefined>).kpi_personal_item ?? {};
+      for (const bit of ['allowCreate', 'allowEdit', 'allowDelete']) {
+        expect(item[bit] ?? false, `${label} 的个人承接项不该有 ${bit}`).toBe(false);
+      }
+    }
   });
 });
 
