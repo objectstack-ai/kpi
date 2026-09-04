@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Hook, HookContext } from '@objectstack/spec/data';
-import { SheetTransitionHook } from '../src/hooks/sheet.hook.js';
+import { SheetAfterTransitionHook, SheetTransitionHook } from '../src/hooks/sheet.hook.js';
 import { CheckTaskDecideHook } from '../src/hooks/check-task.hook.js';
 import { BonusHook } from '../src/hooks/bonus.hook.js';
 import { hasPosition, isSystemWrite, type KpiError } from '../src/hooks/util.js';
@@ -15,6 +15,10 @@ import { hasPosition, isSystemWrite, type KpiError } from '../src/hooks/util.js'
  *  3. 纯系统写入(isSystem,无发起人):必须放行 —— 发布、重算、hook 内部自动推进
  *     不能被岗位闸误伤。
  * 另外锁住第 4 类:REST 路径(非系统 + 发起人)与按钮路径结论一致,同一口径。
+ *
+ * 第 5 类是本文件的替身必须**真实**的地方:hook 自己发起的写入会再次穿过 hook 链。
+ * 替身因此实现了 `sudo()` 语义与「平台审计戳 hook 先于业务 hook 写同一个 input」的时序,
+ * 否则 after 阶段的清场写入根本没被测到 —— 归档半途失败的缺陷就是从这个缝里漏过去的。
  */
 
 const STEPS = [
@@ -28,6 +32,13 @@ interface StoreShape {
   [object: string]: Array<Record<string, any>>;
 }
 
+/** 平台 ExecutionContext 的最小形状(替身只用到这三项)。 */
+interface ExecCtx {
+  userId?: string;
+  isSystem?: true;
+  tenantId?: string;
+}
+
 function matches(row: Record<string, any>, where: Record<string, any> | undefined): boolean {
   if (!where) return true;
   return Object.entries(where).every(([k, v]) => {
@@ -37,43 +48,112 @@ function matches(row: Record<string, any>, where: Record<string, any> | undefine
   });
 }
 
-/** 最小 ctx.api 替身:只实现 hook 真正会用到的读写。没有 sudo,所以 sys()/sysNoActor() 退化为它自己。 */
-function fakeApi(store: StoreShape) {
-  const writes: Array<{ object: string; id: string; data: Record<string, any> }> = [];
-  const api = {
-    object(name: string) {
-      const rows = () => store[name] ?? [];
-      return {
-        async find(q?: Record<string, any>) {
-          return rows().filter((r) => matches(r, q?.where));
-        },
-        async findOne(q?: Record<string, any>) {
-          return rows().find((r) => matches(r, q?.where)) ?? null;
-        },
-        async count(q?: Record<string, any>) {
-          return rows().filter((r) => matches(r, q?.where)).length;
-        },
-        async insert(data: Record<string, any>) {
-          const row = { id: `new_${(store[name] ?? []).length + 1}`, ...data };
-          (store[name] ??= []).push(row);
-          return row;
-        },
-        async update(data: Record<string, any>) {
-          return data;
-        },
-        async updateById(id: string, data: Record<string, any>) {
-          writes.push({ object: name, id, data });
-          const row = rows().find((r) => String(r.id) === String(id));
-          if (row) Object.assign(row, data);
-          return row;
-        },
-        async delete() {
-          return null;
-        },
-      };
-    },
-  };
-  return { api, writes };
+/** 平台 `ObjectQL.buildSession` 的口径:没有身份信封时返回 undefined。 */
+function buildSession(ec: ExecCtx): Record<string, unknown> | undefined {
+  const session = { userId: ec.userId, organizationId: ec.tenantId, ...(ec.isSystem ? { isSystem: true as const } : {}) };
+  return Object.values(session).some((v) => v !== undefined) ? session : undefined;
+}
+
+/** 平台 `ObjectQL.buildUser` 的口径:`userId` 为空时没有「当前用户」。 */
+function buildUser(ec: ExecCtx): { id: string } | undefined {
+  return ec.userId == null ? undefined : { id: String(ec.userId) };
+}
+
+/**
+ * 替身引擎:存数据 + 按平台的时序派发 hook。
+ *
+ * 写入管线刻意复刻两件真实行为,因为缺陷正是从它们的交界处冒出来的:
+ *  1. **平台内建的审计戳 hook 先跑**(`sys_stamp_audit_update`,object `'*'`,priority 10),
+ *     把 `updated_at` / `updated_by` 写进业务 hook 将要看到的**同一个** `ctx.input`;
+ *  2. hook 内部经 `ctx.api` 发起的写入**会再穿一遍 hook 链**,并带着那次写入自己的上下文。
+ */
+class FakeEngine {
+  constructor(
+    readonly store: StoreShape,
+    readonly hooks: Hook[] = [],
+  ) {}
+
+  readonly writes: Array<{ object: string; id: string; data: Record<string, any>; ec: ExecCtx }> = [];
+
+  rows(object: string): Array<Record<string, any>> {
+    return (this.store[object] ??= []);
+  }
+
+  private hooksFor(object: string, event: string): Hook[] {
+    return this.hooks
+      .filter((h) => h.object === object && (h.events as string[]).includes(event))
+      .sort((a, b) => (a.priority ?? 100) - (b.priority ?? 100));
+  }
+
+  async update(object: string, id: string, data: Record<string, any>, ec: ExecCtx): Promise<Record<string, any> | null> {
+    const previous = this.rows(object).find((r) => String(r.id) === String(id));
+    const input: Record<string, any> = { id, ...data };
+    // ① 平台审计戳 hook(priority 10)先于业务 hook 写同一个 input
+    input.updated_at = new Date().toISOString();
+    input.updated_by = ec.userId ?? null;
+    const ctx = {
+      object,
+      event: 'beforeUpdate',
+      input,
+      previous: previous ? { ...previous } : undefined,
+      session: buildSession(ec),
+      user: buildUser(ec),
+      api: new FakeScopedContext(ec, this),
+    } as unknown as HookContext;
+    for (const hook of this.hooksFor(object, 'beforeUpdate')) {
+      await (hook.handler as (c: HookContext) => Promise<void>)(ctx);
+    }
+    this.writes.push({ object, id, data: { ...input }, ec });
+    if (previous) Object.assign(previous, input);
+    for (const hook of this.hooksFor(object, 'afterUpdate')) {
+      await (hook.handler as (c: HookContext) => Promise<void>)(ctx);
+    }
+    return previous ?? null;
+  }
+}
+
+/** 替身 ScopedContext:`executionContext` 是可写的实例属性,`sudo()` 派生一个新的(与平台一致)。 */
+class FakeScopedContext {
+  constructor(
+    public executionContext: ExecCtx,
+    private readonly engine: FakeEngine,
+  ) {}
+
+  sudo(): FakeScopedContext {
+    return new FakeScopedContext({ ...this.executionContext, isSystem: true }, this.engine);
+  }
+
+  object(name: string) {
+    // 与平台一致:仓库在 `object()` 调用的这一刻捕获上下文快照
+    const ec: ExecCtx = { ...this.executionContext };
+    const engine = this.engine;
+    const rows = () => engine.rows(name);
+    return {
+      async find(q?: Record<string, any>) {
+        return rows().filter((r) => matches(r, q?.where));
+      },
+      async findOne(q?: Record<string, any>) {
+        return rows().find((r) => matches(r, q?.where)) ?? null;
+      },
+      async count(q?: Record<string, any>) {
+        return rows().filter((r) => matches(r, q?.where)).length;
+      },
+      async insert(data: Record<string, any>) {
+        const row = { id: `${name}_${rows().length + 1}`, ...data };
+        rows().push(row);
+        return row;
+      },
+      async update(data: Record<string, any>) {
+        return data;
+      },
+      async updateById(id: string, data: Record<string, any>) {
+        return engine.update(name, id, data, ec);
+      },
+      async delete() {
+        return null;
+      },
+    };
+  }
 }
 
 type Session = { isSystem?: true; userId?: string };
@@ -101,6 +181,12 @@ function baseStore(overrides: Partial<StoreShape> = {}): StoreShape {
     ],
     ...overrides,
   };
+}
+
+/** 最小 ctx.api 替身(带 `sudo()` 语义)。默认不挂 hook —— 单跑一个 handler 的用例用它。 */
+function fakeApi(store: StoreShape, hooks: Hook[] = []) {
+  const engine = new FakeEngine(store, hooks);
+  return { api: new FakeScopedContext({}, engine), engine, writes: engine.writes };
 }
 
 function sheetCtx(opts: {
@@ -151,6 +237,31 @@ describe('isSystemWrite —— 系统标记不等于系统写入', () => {
   });
   it('ctx.user 存在而 session 没有 userId 时也认得出发起人', () => {
     expect(isSystemWrite(ctxWith({ isSystem: true }, { id: 'u_hr' }))).toBe(false);
+  });
+});
+
+describe('sysNoActor —— 摘掉发起人的系统上下文', () => {
+  it('经 sysNoActor 发起的写入,到达下游 hook 时没有发起人', async () => {
+    const seen: Array<{ isSystemWrite: boolean; updatedBy: unknown }> = [];
+    const probe: Hook = {
+      name: 'probe', label: 'probe', object: 'kpi_entry_sheet', events: ['beforeUpdate'], priority: 100,
+      handler: async (c: HookContext) => {
+        seen.push({ isSystemWrite: isSystemWrite(c), updatedBy: (c.input as Record<string, any>).updated_by });
+      },
+    };
+    const store = baseStore({ kpi_entry_sheet: [{ id: 'sheet1', plan: 'plan1', status: 'approved' }] });
+    const engine = new FakeEngine(store, [probe]);
+    const caller = new FakeScopedContext({ userId: 'u_hr', isSystem: true, tenantId: 'org1' }, engine);
+    const ctx = { api: caller, session: viaButton('u_hr'), user: { id: 'u_hr' } } as unknown as HookContext;
+
+    const { sys, sysNoActor } = await import('../src/hooks/util.js');
+    await sys(ctx).object('kpi_entry_sheet').updateById('sheet1', { remark: 'a' });
+    await sysNoActor(ctx).object('kpi_entry_sheet').updateById('sheet1', { remark: 'b' });
+
+    expect(seen[0]).toEqual({ isSystemWrite: false, updatedBy: 'u_hr' });
+    expect(seen[1]).toEqual({ isSystemWrite: true, updatedBy: null });
+    // 租户信息不能被一并摘掉
+    expect((sysNoActor(ctx) as unknown as FakeScopedContext).executionContext.tenantId).toBe('org1');
   });
 });
 
@@ -230,12 +341,97 @@ describe('填报单流程推进 —— 按钮路径按发起人校验岗位', ()
     const { ctx } = sheetCtx({ session: viaButton('u_hr'), status: 'hr_reviewing', input: { status: 'approved' } });
     expect(await codeOf(() => run(SheetTransitionHook)(ctx))).toBe('KPI_SHEET_DIRECT_STATUS');
   });
+});
 
-  it('已归档的填报单:按钮路径改业务字段被拒,after 阶段清空流程暂存字段放行', async () => {
-    const locked = sheetCtx({ session: viaButton('u_hr'), status: 'archived', input: { total_score: 99 } });
-    expect(await codeOf(() => run(SheetTransitionHook)(locked.ctx))).toBe('KPI_SHEET_ARCHIVED');
-    const scratch = sheetCtx({ session: viaSystem(), status: 'archived', input: { pending_action: null, action_reason: null } });
-    expect(await codeOf(() => run(SheetTransitionHook)(scratch.ctx))).toBeNull();
+describe('归档锁 —— 只锁业务字段,不锁平台盖的戳', () => {
+  it('按钮路径改业务字段被拒', async () => {
+    const { ctx } = sheetCtx({ session: viaButton('u_hr'), status: 'archived', input: { total_score: 99 } });
+    expect(await codeOf(() => run(SheetTransitionHook)(ctx))).toBe('KPI_SHEET_ARCHIVED');
+  });
+
+  it('只带平台审计戳与流程暂存字段的写入放行(戳不是「改动」)', async () => {
+    const { ctx } = sheetCtx({
+      session: viaButton('u_hr'),
+      status: 'archived',
+      input: { pending_action: null, action_reason: null, updated_at: '2026-09-04T00:00:00.000Z', updated_by: 'u_hr' },
+    });
+    expect(await codeOf(() => run(SheetTransitionHook)(ctx))).toBeNull();
+  });
+
+  it('审计戳与业务字段混在一起时,业务字段照拦', async () => {
+    const { ctx } = sheetCtx({
+      session: viaButton('u_hr'),
+      status: 'archived',
+      input: { updated_at: '2026-09-04T00:00:00.000Z', updated_by: 'u_hr', remark: '偷改' },
+    });
+    expect(await codeOf(() => run(SheetTransitionHook)(ctx))).toBe('KPI_SHEET_ARCHIVED');
+  });
+
+  it('无发起人的系统写入不受归档锁约束', async () => {
+    const { ctx } = sheetCtx({ session: viaSystem(), status: 'archived', input: { total_score: 99 } });
+    expect(await codeOf(() => run(SheetTransitionHook)(ctx))).toBeNull();
+  });
+});
+
+describe('归档 after 阶段 —— 清场写入不能被自己的归档锁拦下', () => {
+  /** 归档刚落库的现场:填报单已是 archived,after 阶段即将清场并生成快照。 */
+  function archivedCtx() {
+    const sheetRow = {
+      id: 'sheet1', name: '2026 年第 3 季度考核 · 销售部', plan: 'plan1', subject: 'bu_a',
+      status: 'archived', current_step: 4, pending_action: 'archive', action_reason: null,
+      total_score: 95, indicator_score: 95, archived_at: '2026-09-04T00:00:00.000Z',
+    };
+    const store = baseStore({
+      kpi_entry_sheet: [sheetRow],
+      kpi_entry_line: [{ id: 'l1', sheet: 'sheet1', indicator_name: '签约金额', final_score: 95 }],
+      kpi_bonus: [],
+      kpi_adjustment: [],
+      kpi_review_record: [],
+      kpi_snapshot: [],
+      kpi_result: [],
+    });
+    const engine = new FakeEngine(store, [SheetTransitionHook]);
+    const ctx = {
+      object: 'kpi_entry_sheet',
+      event: 'afterUpdate',
+      input: { id: 'sheet1', status: 'archived', current_step: 4, pending_action: 'archive', action_reason: null, archived_at: sheetRow.archived_at },
+      previous: { id: 'sheet1', name: sheetRow.name, plan: 'plan1', subject: 'bu_a', status: 'approved', current_step: 4 },
+      session: viaButton('u_hr'),
+      user: { id: 'u_hr' },
+      api: new FakeScopedContext({ userId: 'u_hr', isSystem: true, tenantId: 'org1' }, engine),
+    } as unknown as HookContext;
+    return { ctx, store, engine };
+  }
+
+  it('人力审核归档:清场写入通过,审核记录与快照都落库', async () => {
+    const { ctx, store } = archivedCtx();
+    await run(SheetAfterTransitionHook)(ctx);
+
+    const sheet = store.kpi_entry_sheet![0]!;
+    expect(sheet.pending_action).toBeNull();
+    expect(sheet.action_reason).toBeNull();
+
+    const reviews = store.kpi_review_record ?? [];
+    expect(reviews.map((r) => r.action)).toContain('archive');
+    expect(reviews.find((r) => r.action === 'archive')?.to_status).toBe('archived');
+
+    const snapshots = store.kpi_snapshot ?? [];
+    expect(snapshots).toHaveLength(1);
+    expect(snapshots[0]!.sheet).toBe('sheet1');
+    expect(snapshots[0]!.checksum).toMatch(/^[0-9a-f]{64}$/);
+    expect(snapshots[0]!.archived_by).toBe('u_hr');
+  });
+
+  it('清场写入到达 beforeUpdate 时确实是「无发起人的系统写入」', async () => {
+    const seen: boolean[] = [];
+    const probe: Hook = {
+      name: 'probe', label: 'probe', object: 'kpi_entry_sheet', events: ['beforeUpdate'], priority: 90,
+      handler: async (c: HookContext) => { seen.push(isSystemWrite(c)); },
+    };
+    const { ctx, engine } = archivedCtx();
+    engine.hooks.push(probe);
+    await run(SheetAfterTransitionHook)(ctx);
+    expect(seen[0]).toBe(true);
   });
 });
 

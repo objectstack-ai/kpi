@@ -19,6 +19,17 @@ export async function loadPlanSteps(api: ReturnType<typeof sys>, planId: string)
 const SCRATCH_FIELDS = new Set(['pending_action', 'action_reason']);
 
 /**
+ * 平台审计戳字段 —— 不是任何人「改」出来的,是平台内建 hook 盖上去的。
+ *
+ * 平台的 `sys_stamp_audit_update`(object `'*'`,priority 10)在本 hook(priority 100)
+ * **之前**跑,把 `updated_at` / `updated_by` 直接写进同一个 `ctx.input`。所以到本 hook
+ * 手里时,一次「只清空 pending_action」的写入,`input` 里已经多出两个字段。归档锁若照
+ * `input` 的字面内容判「有没有改动」,就会把平台自己盖的戳算成用户改数据 —— 归档流程
+ * 在 after 阶段的清场写入上被自己拦下,快照与审核记录都不会执行。
+ */
+const PLATFORM_STAMP_FIELDS = new Set(['created_at', 'created_by', 'updated_at', 'updated_by']);
+
+/**
  * 填报单由方案发布生成;非系统上下文不能手工新建。
  *
  * 这里的免检仍按 `isSystem` 而不是「无发起人」:发布是**用户点**「发布方案」触发的,
@@ -68,9 +79,12 @@ export const SheetTransitionHook: Hook = {
         fail('修改填报单状态失败:状态由流程推进,不能直接修改。请使用提交、审核通过、驳回或归档按钮。', 'KPI_SHEET_DIRECT_STATUS');
       }
       if (prev.status === 'archived' && !isSystemWrite(ctx)) {
-        // pending_action / action_reason 是流程的暂存字段,after 阶段的清场写入只动这两个,
-        // 不算「改数据」;带真实动作的写入走不到这个分支(上面 `action` 为真时已分流)。
-        const touched = Object.keys(input).filter((k) => !SCRATCH_FIELDS.has(k) && k !== 'id' && input[k] !== prev[k]);
+        // 「改动」只算业务字段:流程暂存字段(after 阶段清场写的就是这两个)与平台审计戳
+        // (由更早的平台 hook 盖进同一个 input)都不是用户改数据。带真实动作的写入走不到
+        // 这个分支(上面 `action` 为真时已分流)。
+        const touched = Object.keys(input).filter(
+          (k) => !SCRATCH_FIELDS.has(k) && !PLATFORM_STAMP_FIELDS.has(k) && k !== 'id' && input[k] !== prev[k],
+        );
         if (touched.length) fail('修改填报单失败:该填报单已归档,数据已锁定不可再改。', 'KPI_SHEET_ARCHIVED');
       }
       return;
@@ -161,8 +175,11 @@ export const SheetAfterTransitionHook: Hook = {
     if (!id) return;
     const api = sys(ctx);
     const actor = actorId(ctx);
-    // 先清空动作,再做副作用:副作用失败也不会让动作残留而被反复触发
-    await api.object('kpi_entry_sheet').updateById(id, { pending_action: null, action_reason: null });
+    // 先清空动作,再做副作用:副作用失败也不会让动作残留而被反复触发。
+    // 清场是系统动作,不是任何人点出来的 —— 用无发起人的系统上下文写,让它落在
+    // `isSystemWrite` 免检那一侧;否则归档后的这一次清场会被自己的归档锁拦下,
+    // 快照与审核记录都不会执行,填报单永久停在「已归档但没有快照」。
+    await sysNoActor(ctx).object('kpi_entry_sheet').updateById(id, { pending_action: null, action_reason: null });
     const fromStatus = prev.status as SheetStatus;
     const toStatus = now.status as SheetStatus;
     const steps = await loadPlanSteps(api, String(now.plan ?? prev.plan));
