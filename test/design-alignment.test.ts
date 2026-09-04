@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BONUS_APPROVE_RULE, BONUS_REGISTER_RULE, requiredBonusPosition } from '../src/hooks/bonus.hook.js';
-import { findPublishedConflict, planPeriodConflictMessage, samePeriod } from '../src/hooks/plan.hook.js';
+import { findPublishedConflict, missingLeaderProblems, planPeriodConflictMessage, samePeriod } from '../src/hooks/plan.hook.js';
+import { DEFAULT_STEPS, type PlanStepDef } from '../src/lib/workflow.js';
 import { adjustmentLinePatch } from '../src/hooks/adjustment.hook.js';
 import { aggregateResults, type SheetSummary } from '../src/lib/aggregate.js';
 
@@ -104,5 +105,40 @@ describe('调整落地标记「已调整」(第 10 章第 14 项 = A / 设计 5.
     expect(parts[0].items[0]).toMatchObject({ plan_indicator: 'pi1', is_adjusted: true, adjust_type_applied: 'result' });
     // 得分不因标记而变:90×100%×1 + 100%×20% = 110
     expect(person.score).toBe(110);
+  });
+});
+
+describe('发布前完整性检查:每个参与主体须配分管领导(设计 表 2 第 1 步)', () => {
+  const subjects = [
+    { name: '销售部', subject: 'bu_sales', leader: 'u_leader_1' },
+    { name: '财务部', subject: 'bu_fin', leader: null },
+    { name: '人力行政部', subject: 'bu_hr', leader: '' },
+  ];
+  const noLeaderStep: PlanStepDef[] = DEFAULT_STEPS.filter((s) => s.step_type !== 'leader_approve');
+
+  it('有主体缺分管领导 → 逐条列出主体名称,拦下发布', () => {
+    const problems = missingLeaderProblems(DEFAULT_STEPS, subjects);
+    expect(problems).toHaveLength(2);
+    expect(problems[0]).toContain('财务部');
+    expect(problems[1]).toContain('人力行政部');
+    expect(problems.join('\n')).not.toContain('销售部');
+    // 三段式:哪里出的问题 + 为什么不能发 + 怎么办
+    expect(problems[0]).toContain('未配置分管领导');
+    expect(problems[0]).toContain('领导审批');
+    expect(problems[0]).toContain('请在方案的「参与主体与考核关系」里为该主体指定分管领导');
+  });
+
+  it('全部主体都配了分管领导 → 放行', () => {
+    expect(missingLeaderProblems(DEFAULT_STEPS, subjects.map((s) => ({ ...s, leader: 'u_leader_1' })))).toEqual([]);
+  });
+
+  it('流程里没有「领导审批」节点 → 不做此检查', () => {
+    expect(noLeaderStep.some((s) => s.step_type === 'leader_approve')).toBe(false);
+    expect(missingLeaderProblems(noLeaderStep, subjects)).toEqual([]);
+  });
+
+  it('主体名称为空时退回主体标识,不会出现空的「主体「」」', () => {
+    const problems = missingLeaderProblems(DEFAULT_STEPS, [{ name: '', subject: 'bu_x', leader: null }]);
+    expect(problems[0]).toContain('主体「bu_x」');
   });
 });
