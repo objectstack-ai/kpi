@@ -62,6 +62,19 @@ export interface AssignmentRow {
   name?: string | null;
 }
 
+/**
+ * 一张填报单。审核记录与核对任务的规则按它建,不按主体建 —— 审核记录上没有主体列
+ * (它只认填报单),而平台的共享条件只认对象自己的列、不支持跨对象遍历
+ * (`SharingRuleSchema`:「a `condition` the compiler cannot lower (functions,
+ * cross-object traversal) is skipped and logged」)。一张填报单只属于一个主体,
+ * 按填报单建的规则粒度比按主体更细,隔离性不降反升。
+ */
+export interface SheetRow {
+  id: string;
+  subject?: string | null;
+  name?: string | null;
+}
+
 /** 方案状态里「只读」的两个:已关闭、已归档。 */
 export function isReadOnlyPlanStatus(status: unknown): boolean {
   return status === 'closed' || status === 'archived';
@@ -71,8 +84,9 @@ export function isReadOnlyPlanStatus(status: unknown): boolean {
 export const RULE_NAME_MAX = 100;
 
 /**
- * 单个 id 片段的长度上界。最长的规则名形态是
- * `kpi_p{方案}_result_leader_{单元}_{领导}` —— 固定部分 `kpi_p` + `_` + `result_leader_`
+ * 单个 id 片段的长度上界。最长的规则名形态是 `{key}_leader_` 这一族里 key 最长的三个
+ * ——`kpi_p{方案}_result_leader_{单元}_{领导}` 与同样 14 字符的 `review_leader_` /
+ * `assign_leader_` —— 固定部分 `kpi_p` + `_` + `result_leader_`
  * + `_` 共 21 字符,三个片段各 26 时总长 99,正好落在 {@link RULE_NAME_MAX} 以内。
  * 其余形态都更短(`{key}_pos_{position}` 的两段都是本文件里的常量)。
  */
@@ -147,10 +161,11 @@ const HR_POSITION_OBJECTS: ReadonlyArray<{ key: string; object: string; label: s
 /**
  * 由方案配置推导出本方案需要的全部共享规则(纯函数,便于单元测试)。
  *
- * - 考核主体单元:填报单 / 核对任务 / 数据调整可编辑,本单元结果只读;
+ * - 考核主体单元:填报单 / 核对任务 / 数据调整可编辑,本单元结果只读;本单元的参与主体 /
+ *   指标下达 / 到人分工 / 归档快照只读,本单元填报单的审核记录与核对进展只读;
  * - 人力岗位(人力审核 / 人力负责人):本方案**全部**填报单与数据调整可编辑;
  * - 分管领导:所分管主体的填报单可编辑(领导审批节点要能改状态)、所分管主体的结果只读、
- *   本人结果(分管领导维度)只读;
+ *   本人结果(分管领导维度)只读、所分管主体的配置与审计四类 + 审核记录 / 核对进展只读;
  * - 被考核员工:本人到人结果只读。
  *
  * 方案已关闭 / 已归档时,可编辑的三类降为只读。
@@ -170,11 +185,19 @@ const HR_POSITION_OBJECTS: ReadonlyArray<{ key: string; object: string; label: s
  * 加减分(`kpi_bonus`)不需要自己的规则:它是填报单的主从子记录(`controlled_by_parent`),
  * 记录级判定看的是主记录 —— 拿到填报单的 edit,插入 / 修改子记录就成立。
  */
+const CONFIG_SCOPE_RULES: ReadonlyArray<{ key: string; object: string; label: string; unitField: string }> = [
+  { key: 'psub', object: 'kpi_plan_subject', label: '参与主体', unitField: 'subject' },
+  { key: 'pind', object: 'kpi_plan_indicator', label: '指标下达', unitField: 'subject' },
+  { key: 'assign', object: 'kpi_staff_assignment', label: '到人分工', unitField: 'unit' },
+  { key: 'snap', object: 'kpi_snapshot', label: '归档快照', unitField: 'subject' },
+];
+
 export function planSharingIntents(
   planId: string,
   subjects: SubjectRow[],
   assignments: AssignmentRow[],
   planStatus?: unknown,
+  sheets: SheetRow[] = [],
 ): SharingIntent[] {
   const intents: SharingIntent[] = [];
   const seen = new Set<string>();
@@ -238,6 +261,22 @@ export function planSharingIntents(
       anchorUnit: unit,
     });
 
+    // 配置 / 审计类对象按主体只读放行(各部门目标值与权重互相保密,维护者 2026-09-03 拍板)。
+    // 一律 `read`:这四类对本单元成员只可看不可改,方案关闭 / 归档也不需要降级。
+    for (const { key, object, label, unitField } of CONFIG_SCOPE_RULES) {
+      push({
+        name: `${prefix}${key}_${unitSlug}`,
+        label: `${label}共享给${unitLabel}及其下级`,
+        description: '考核主体成员',
+        object,
+        criteria: { plan: planId, [unitField]: unit },
+        recipientType: 'unit_and_subordinates',
+        recipientId: unit,
+        accessLevel: 'read',
+        anchorUnit: unit,
+      });
+    }
+
     const leader = s.leader ? String(s.leader) : '';
     if (!leader) continue;
     const leaderSlug = ruleSlug(leader);
@@ -276,6 +315,79 @@ export function planSharingIntents(
       accessLevel: 'read',
       anchorUnit: unit,
     });
+    // 分管领导要看到所分管主体的配置与审计:他通常不是该单元的成员,少了这一族规则,
+    // 「分管范围」在这四个对象上就是空的。
+    for (const { key, object, label, unitField } of CONFIG_SCOPE_RULES) {
+      push({
+        name: `${prefix}${key}_leader_${unitSlug}_${leaderSlug}`,
+        label: `${unitLabel}${label}共享给分管领导`,
+        description: '分管领导',
+        object,
+        criteria: { plan: planId, [unitField]: unit },
+        recipientType: 'user',
+        recipientId: leader,
+        accessLevel: 'read',
+        anchorUnit: unit,
+      });
+    }
+  }
+
+  // 审核记录与「本主体填报单上的核对任务」:按填报单建规则(理由见 {@link SheetRow})。
+  const leaderOfUnit = new Map<string, string>();
+  const unitOfSubject = new Map<string, SubjectRow>();
+  for (const s of subjects) {
+    const unit = String(s.subject ?? '');
+    if (!unit) continue;
+    unitOfSubject.set(unit, s);
+    if (s.leader) leaderOfUnit.set(unit, String(s.leader));
+  }
+  for (const sh of sheets) {
+    const sheetId = String(sh.id ?? '');
+    const unit = String(sh.subject ?? '');
+    if (!sheetId || !unit) continue;
+    const sheetSlug = ruleSlug(sheetId);
+    const unitLabel = unitOfSubject.get(unit)?.name || sh.name || unit;
+    const perSheet: Array<{ key: string; object: string; label: string; criteria: Record<string, unknown> }> = [
+      // 审核记录上没有方案列,条件只能落在填报单上;隔离性由「一张填报单只属于一个方案的
+      // 一个主体」保证,回收由规则名的方案前缀保证(见 reconcilePlanSharing)。
+      { key: 'review', object: 'kpi_review_record', label: '审核记录', criteria: { sheet: sheetId } },
+    ];
+    // 核对任务已有一条按分公司的可编辑规则(给核对方);这一条是给**被核对的部门**看自己
+    // 填报单上的核对进展,只读。
+    //
+    // ⚠️ 只给「总公司部门」主体,不给「分公司」主体:分公司既是被考核主体、又是核对方,
+    // 一张分公司的填报单上挂着**全部**分公司的核对任务。给它这条规则,华东的核对人员就会
+    // 在自己那张填报单上看见华南、华北的核对意见 —— 与「分公司核对人员只开放本分公司相关
+    // 行」的拍板口径直接冲突,取窄的那条。
+    if (unitOfSubject.get(unit)?.subject_type === 'department') {
+      perSheet.push({ key: 'scheck', object: 'kpi_check_task', label: '本单填报单的核对任务', criteria: { plan: planId, sheet: sheetId } });
+    }
+    for (const { key, object, label, criteria } of perSheet) {
+      push({
+        name: `${prefix}${key}_${sheetSlug}`,
+        label: `${label}共享给${unitLabel}及其下级`,
+        description: '考核主体成员',
+        object,
+        criteria,
+        recipientType: 'unit_and_subordinates',
+        recipientId: unit,
+        accessLevel: 'read',
+        anchorUnit: unit,
+      });
+      const leader = leaderOfUnit.get(unit);
+      if (!leader) continue;
+      push({
+        name: `${prefix}${key}_leader_${sheetSlug}_${ruleSlug(leader)}`,
+        label: `${unitLabel}${label}共享给分管领导`,
+        description: '分管领导',
+        object,
+        criteria,
+        recipientType: 'user',
+        recipientId: leader,
+        accessLevel: 'read',
+        anchorUnit: unit,
+      });
+    }
   }
 
   // 人力岗位:本方案全部填报单与数据调整可编辑。规则要有组织归属才展开得出人,而组织归属
@@ -410,6 +522,15 @@ export interface ProvisionOptions {
   /** 只重新声明这些对象上的规则;省略 = 全部(方案发布 / 关闭时用)。 */
   objects?: readonly string[];
   /**
+   * 只重新声明条件落在这些填报单上的规则(审核记录 / 本单核对任务)。省略 = 不按填报单收窄。
+   *
+   * 存在的理由是**代价**:审核记录由 hook 以系统上下文逐条写入,平台跳过物化,补偿手段是
+   * 重新声明规则(见 {@link ensureRule})。一个方案下有多少张填报单就有多少条审核记录规则,
+   * 每条重申都要把它匹配到的记录整批重新物化 —— 为一条新审核记录重申**全部**填报单的规则
+   * 是平方级的浪费。带上本条,一次插入只重申它自己那张单的两条规则。
+   */
+  sheets?: readonly string[];
+  /**
    * 是否对账(停用本方案下已不该存在的规则)。只有覆盖全部对象的那次调用才对账 ——
    * 按对象做的增量重声明看不到全集,拿它去对账会把没在本次范围里的规则全停掉。
    */
@@ -481,8 +602,13 @@ export async function provisionPlanSharing(api: Api, planId: string, options: Pr
   const plan = await api.object('kpi_plan').findOne({ where: { id: planId } });
   const subjects = (await api.object('kpi_plan_subject').find({ where: { plan: planId } })) as SubjectRow[];
   const assignments = (await api.object('kpi_staff_assignment').find({ where: { plan: planId } })) as AssignmentRow[];
-  const all = planSharingIntents(planId, subjects ?? [], assignments ?? [], plan?.status);
-  const intents = options.objects ? all.filter((i) => options.objects!.includes(i.object)) : all;
+  const sheets = (await api.object('kpi_entry_sheet').find({ where: { plan: planId }, limit: 2000 })) as SheetRow[];
+  const all = planSharingIntents(planId, subjects ?? [], assignments ?? [], plan?.status, sheets ?? []);
+  let intents = options.objects ? all.filter((i) => options.objects!.includes(i.object)) : all;
+  if (options.sheets) {
+    const wanted = new Set(options.sheets.map((s) => String(s)));
+    intents = intents.filter((i) => !('sheet' in i.criteria) || wanted.has(String(i.criteria.sheet)));
+  }
   const orgOf = await unitOrganizations(api, all.map((i) => i.anchorUnit));
 
   for (const intent of intents) {
