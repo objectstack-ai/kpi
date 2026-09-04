@@ -32,6 +32,15 @@ const plan = plans[0];
 log('T1', '种子方案已加载', !!plan, plan?.name);
 const pis = await list('kpi_plan_indicator', `?plan=${plan.id}&limit=100`);
 log('T2', '指标下达 18 条且名称由 hook 填充', pis.length === 18 && pis.every((p) => p.name && p.name.includes(' · ')), `${pis.length} rows, sample: ${pis[0]?.name}`);
+// 发布前完整性检查要求「流程含领导审批节点时,每个参与主体都要配分管领导」——演示种子只建
+// 组织树与方案配置,分管领导是用户查找字段、种子里给不了值,所以由脚本按需求补配置(补配置,
+// 不放松检查)。这里先用管理员账号占住 5 个主体的分管领导,后面的方案版本再换成专用的领导账号。
+const adminUser = (await list('sys_user', '?limit=200')).find((u) => u.email === 'admin@objectos.ai');
+const subs1 = await list('kpi_plan_subject', `?plan=${plan.id}&limit=50`);
+for (const s of subs1) await patch('kpi_plan_subject', s.id, { leader: adminUser.id });
+log('T2b', '发布前为每个参与主体配置分管领导(种子不带,脚本按需求补)', subs1.length === 5 && !!adminUser,
+  `${subs1.length} 个主体 → ${adminUser?.name ?? adminUser?.email}`);
+
 // 2 publish with weight problem: temporarily break a weight
 const marketPis = pis.filter((p) => p.name.endsWith('市场部'));
 const ORIG = { '营业收入完成率': 50, '利润完成率': 30, '客户满意度': 20 };
@@ -222,9 +231,13 @@ log('T38', '发布第三版方案(市场部已配分管领导)生成 5 张填报
 const rulesOf = async (planId) => (await list('sys_sharing_rule', '?limit=500')).filter((x) => String(x.criteria_json ?? '').includes(planId) && x.active !== false);
 const kpiRules = await rulesOf(plan3.id);
 // 推导条数(不是下限):5 个参与主体 × 4 类(填报单 / 核对任务 / 调整 / 结果)= 20,
-// 市场部配了分管领导 → +3(填报单、该主体结果、本人结果),2 条到人分工 → +2,
-// 人力岗位 2 个 × 2 类(填报单 / 调整)→ +4,合计 29。
-const EXPECTED_RULES = 5 * 4 + 3 + 2 + 2 * 2;
+// 每个配了分管领导的主体 → +2(该主体填报单、该主体结果),每位分管领导 → +1(本人结果),
+// 2 条到人分工 → +2,人力岗位 2 个 × 2 类(填报单 / 调整)→ +4。
+// 分管领导按方案实配推导:全部主体都要配分管领导(发布前完整性检查),市场部配的是 C,
+// 其余主体沿用复制自上一版的管理员账号。
+const subs3After = await list('kpi_plan_subject', `?plan=${plan3.id}&limit=50`);
+const leaderSubs3 = subs3After.filter((x) => x.leader);
+const EXPECTED_RULES = 5 * 4 + leaderSubs3.length * 2 + new Set(leaderSubs3.map((x) => String(x.leader))).size + 2 + 2 * 2;
 log('T39', '发布按方案配置写入动态共享规则,条数与方案配置精确相符,元数据零改动', kpiRules.length === EXPECTED_RULES && kpiRules.some((x) => x.object_name === 'kpi_entry_sheet' && x.recipient_type === 'unit_and_subordinates' && x.recipient_id === 'bu_market') && kpiRules.some((x) => x.recipient_type === 'user' && x.recipient_id === U.c.id && x.object_name === 'kpi_entry_sheet'), `rules=${kpiRules.length} expected=${EXPECTED_RULES}`);
 log('T39b', '规则条件按方案隔离:每条规则的条件里都带本方案 id', kpiRules.length > 0 && kpiRules.every((x) => { try { return JSON.parse(x.criteria_json).plan === plan3.id; } catch { return false; } }), `${kpiRules.length} 条`);
 const sheetShared = await waitUntil('市场部填报单共享给 A', async () => {

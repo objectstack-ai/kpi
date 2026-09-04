@@ -468,11 +468,13 @@ log('T17c', '分公司核对人员只见本分公司的核对任务', eastTasks.
 await signIn(ACCOUNT.leaderTech);
 await waitUntil('技术线分管主体填报单共享给分管领导', async () => (await list('kpi_entry_sheet', '?limit=100')).length > 0);
 const techSheets = await list('kpi_entry_sheet', '?limit=100');
-const techScope = new Set(['bu_sw_rd', 'bu_sw_pd', 'bu_sw_qa']);
+// 分管范围以方案里实际配置的分管领导为准(每个参与主体都要配分管领导,范围会随档案调整)。
+const techLeaderId = String(userByEmail.get(ACCOUNT.leaderTech)?.id ?? '');
+const techScope = new Set(subjects.filter((x) => String(x.leader ?? '') === techLeaderId).map((x) => String(x.subject)));
 const leaderCross = await call('GET', `/data/kpi_entry_sheet/${salesSheet.id}`);
 log('T17d', '分管领导只见分管主体的填报单,打开非分管主体的填报单被拒绝',
-  techSheets.length > 0 && techSheets.every((s) => techScope.has(String(s.subject))) && (leaderCross.status === 403 || leaderCross.status === 404),
-  `可见 ${techSheets.length} 张:${techSheets.map((s) => s.name.split(' · ')[1]).join('、')};越权读取 status=${leaderCross.status}`);
+  techScope.size > 0 && techSheets.length === techScope.size && techSheets.every((s) => techScope.has(String(s.subject))) && (leaderCross.status === 403 || leaderCross.status === 404),
+  `分管 ${techScope.size} 个主体,可见 ${techSheets.length} 张:${techSheets.map((s) => s.name.split(' · ')[1]).join('、')};越权读取 status=${leaderCross.status}`);
 
 asAdmin();
 const summary = { passed: results.filter((x) => x.ok).length, failed: results.filter((x) => !x.ok).length };
