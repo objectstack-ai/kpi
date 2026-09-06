@@ -25,8 +25,20 @@ const STAFF = [
   { name: '郑洁', email: 'fin.specialist@kpi.demo', job: '财务专员', unit: 'bu_sw_fin', position: 'kpi_dept_reporter', weight: 100, coefficient: 0.95, item: 'SWFI02', itemWeight: 20 },
 ];
 
-/** 流程岗位人员:分公司核对、人力审核、人力负责人、分管领导(不建到人分工)。 */
+/**
+ * 流程岗位人员:分公司填报、分公司核对、人力审核、人力负责人、分管领导(不建到人分工)。
+ *
+ * 分公司同时是**被考核主体**和**核对方**,两件事是两个岗位:核对人员只能「确认无误 /
+ * 提出争议」、改不了数值(《设计方案》§3 表 1),所以分公司自己那张填报单必须另有填报
+ * 人员来填。三家分公司各配 1 名「部门填报人员」(岗位机器名 `kpi_dept_reporter`,组织
+ * 归属为本分公司),数据范围与部门填报人员同源:方案发布时按参与主体写入的共享规则把
+ * 本主体的填报单放宽到本单元成员(services/sharing-service.ts),分公司本身就是参与
+ * 主体,不需要任何额外的元数据。缺了他们,三张分公司填报单在界面上无人可填。
+ */
 const OFFICERS = [
+  { name: '沈月', email: 'east.reporter@kpi.demo', job: '华东分公司填报人员', unit: 'bu_sw_east', position: 'kpi_dept_reporter' },
+  { name: '黄鹤', email: 'south.reporter@kpi.demo', job: '华南分公司填报人员', unit: 'bu_sw_south', position: 'kpi_dept_reporter' },
+  { name: '秦朗', email: 'north.reporter@kpi.demo', job: '华北分公司填报人员', unit: 'bu_sw_north', position: 'kpi_dept_reporter' },
   { name: '陈东', email: 'east.checker@kpi.demo', job: '华东分公司核对人员', unit: 'bu_sw_east', position: 'kpi_branch_checker' },
   { name: '林南', email: 'south.checker@kpi.demo', job: '华南分公司核对人员', unit: 'bu_sw_south', position: 'kpi_branch_checker' },
   { name: '高北', email: 'north.checker@kpi.demo', job: '华北分公司核对人员', unit: 'bu_sw_north', position: 'kpi_branch_checker' },

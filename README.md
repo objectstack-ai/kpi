@@ -46,7 +46,7 @@ pnpm dev             # http://localhost:3000 ;Console: /_console/ ;管理员 adm
 rm -rf dist
 rm -f .objectstack/software.db*                                       # 或换一个没用过的文件名
 OS_SEED_PROFILE=software OS_DATABASE_URL=file:./.objectstack/software.db pnpm dev
-node scripts/software-people.mjs            # 15 个岗位账号、到人分工、个人承接项、分管领导(用户不能种子,只能运行期建)
+node scripts/software-people.mjs            # 18 个岗位账号、到人分工、个人承接项、分管领导(用户不能种子,只能运行期建)
 node scripts/software-flow.mjs [结果.json]  # 发布 → 填报 → 核对 → 审核 → 加减分 → 调整 → 汇总 → 归档 → 数据范围
 
 # 换回默认档案:同样是删 dist + 另指定(或清空)数据库文件
@@ -56,6 +56,14 @@ OS_DATABASE_URL=file:./.objectstack/default.db pnpm dev
 
 两个脚本都读 `KPI_BASE_URL`(缺省 `http://localhost:${OS_PORT:-3000}`);`software-people.mjs` 可重复执行,
 且必须在方案仍是草稿时运行 —— 到人分工与分管领导随方案发布冻结;`software-flow.mjs` 要求空库(它会先故意把方案改坏来验发布拦截)。
+
+`software-people.mjs` 建的 18 个账号里,三家分公司**各有两名**:一名「分公司填报人员」(沈月 /
+黄鹤 / 秦朗,岗位 `kpi_dept_reporter`)、一名「分公司核对人员」(陈东 / 林南 / 高北,岗位
+`kpi_branch_checker`)。分公司在方案里既是被考核主体、又是核对方,而核对人员按《设计方案》
+§3 表 1 只能「确认无误 / 提出争议」、改不了数值 —— 分公司自己那张填报单必须由分公司填报
+人员来填,不是管理员代填(`software-flow.mjs` 的 T11b 就断言这一条)。他们的数据范围与部门
+填报人员同源:方案发布时按参与主体写入的共享规则把本主体的填报单放宽到本单元成员,分公司
+本身就是参与主体,不需要任何额外的元数据。
 
 > ⚠️ 演示夹具的租户对齐(临时):种子写入的组织单元 `organization_id` 为空,而管理员在
 > Setup 里新建的单元会被引擎盖上当前组织;共享规则的收件方展开对这一列做等值比较,所以

@@ -28,6 +28,9 @@ const ACCOUNT = {
   east: 'east.checker@kpi.demo',
   south: 'south.checker@kpi.demo',
   north: 'north.checker@kpi.demo',
+  eastReporter: 'east.reporter@kpi.demo',
+  southReporter: 'south.reporter@kpi.demo',
+  northReporter: 'north.reporter@kpi.demo',
   hr: 'hr.reviewer@kpi.demo',
   head: 'hr.head@kpi.demo',
   leaderTech: 'leader.tech@kpi.demo',
@@ -267,14 +270,52 @@ asAdmin();
 sheet = await get('kpi_entry_sheet', salesSheet.id);
 log('T10', '分管领导审批通过 → 已通过并盖章', r.status < 300 && sheet.status === 'approved' && !!sheet.approved_at && !!sheet.approved_by, `status=${sheet.status}`);
 
-// ── 其余 10 张填报单:管理员批量推到已通过,让四维汇总有完整数据 ──────────
+/**
+ * 分公司主体的填报人员 —— 分公司自己那张填报单由**本分公司的填报人员**填,不由管理员代填。
+ *
+ * 分公司在本方案里既是核对方、又是被考核主体,两件事是两个岗位:核对人员只能确认或提出
+ * 争议、改不了数值,所以分公司填报单必须另有填报人员。这三个账号由 software-people.mjs
+ * 建立(岗位 `kpi_dept_reporter`,组织归属为本分公司)。
+ */
+const BRANCH_REPORTER = {
+  bu_sw_east: ACCOUNT.eastReporter,
+  bu_sw_south: ACCOUNT.southReporter,
+  bu_sw_north: ACCOUNT.northReporter,
+};
+/** 由分公司填报人员本人填报并提交的分公司主体(供 T11b 断言,不是管理员代填)。 */
+const filledByBranchReporter = [];
+
+// ── 其余 10 张填报单:部门单由管理员批量推,分公司单由分公司填报人员本人填 ──────
 async function pushToApproved(target) {
-  const lines = await list('kpi_entry_line', `?sheet=${target.id}&limit=50`);
-  for (const l of lines) {
-    const code = [...byCode.entries()].find(([, ind]) => String(ind.id) === String(l.indicator))?.[0];
-    await patch('kpi_entry_line', l.id, { actual_value: ACTUALS[String(target.subject)][code] });
+  const subject = String(target.subject);
+  const reporter = BRANCH_REPORTER[subject];
+  if (reporter) {
+    // 填报与提交这两步换成分公司填报人员的登录态:能填、能提交本身就是数据范围的断言,
+    // 填不了或提交不了会让这里直接抛错(signIn 失败即终止),不会静默退回管理员代填。
+    await signIn(reporter);
+    // 共享规则展开成逐人记录共享行是异步的:等到本分公司的填报单真的可见再动手,
+    // 否则明细列表会返回空数组,而「空数组每一行都填好了」会静默变成一条假通过。
+    await waitUntil(`${subject} 填报单共享给分公司填报人员`, async () =>
+      (await list('kpi_entry_line', `?sheet=${target.id}&limit=50`)).length > 0);
+    const own = await list('kpi_entry_line', `?sheet=${target.id}&limit=50`);
+    for (const l of own) {
+      const code = [...byCode.entries()].find(([, ind]) => String(ind.id) === String(l.indicator))?.[0];
+      await patch('kpi_entry_line', l.id, { actual_value: ACTUALS[subject][code] });
+    }
+    const submitted = await patch('kpi_entry_sheet', target.id, { pending_action: 'submit' });
+    asAdmin();
+    const after = await get('kpi_entry_sheet', target.id);
+    const reread = await list('kpi_entry_line', `?sheet=${target.id}&limit=50`);
+    const filledAll = reread.length > 0 && reread.every((l) => l.actual_value !== null && l.actual_value !== undefined);
+    if (own.length > 0 && submitted.status < 300 && filledAll && after.status !== 'draft') filledByBranchReporter.push(subject);
+  } else {
+    const lines = await list('kpi_entry_line', `?sheet=${target.id}&limit=50`);
+    for (const l of lines) {
+      const code = [...byCode.entries()].find(([, ind]) => String(ind.id) === String(l.indicator))?.[0];
+      await patch('kpi_entry_line', l.id, { actual_value: ACTUALS[subject][code] });
+    }
+    await patch('kpi_entry_sheet', target.id, { pending_action: 'submit' });
   }
-  await patch('kpi_entry_sheet', target.id, { pending_action: 'submit' });
   let s = await get('kpi_entry_sheet', target.id);
   if (s.status === 'branch_checking') {
     for (const t of await list('kpi_check_task', `?sheet=${target.id}&limit=20`)) {
@@ -297,6 +338,9 @@ for (const s of sheets) {
 }
 log('T11', '其余 10 张填报单全部推进到已通过', pushed.every((s) => s.status === 'approved'),
   pushed.map((s) => `${s.name.split(' · ')[1]}:${s.status}/${s.total_score}`).join(' | '));
+log('T11b', '三张分公司填报单由本分公司的填报人员本人填报并提交(不是管理员代填)',
+  filledByBranchReporter.length === 3 && ['bu_sw_east', 'bu_sw_south', 'bu_sw_north'].every((u) => filledByBranchReporter.includes(u)),
+  `由分公司填报人员完成:${filledByBranchReporter.join(', ') || '(无)'}`);
 
 const csSheet = await get('kpi_entry_sheet', sheetOf('bu_sw_cs').id);
 const csLines = await list('kpi_entry_line', `?sheet=${csSheet.id}&limit=50`);
