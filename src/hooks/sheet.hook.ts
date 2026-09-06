@@ -1,6 +1,7 @@
 import type { Hook, HookContext } from '@objectstack/spec/data';
 import { actorId, fail, findById, hasPosition, isSystem, isSystemWrite, merged, nowIso, recordId, sys, sysNoActor, writeReview } from './util.js';
 import { requiredPositionFor, STATUS_LABEL, STEP_LABEL, transition, type PlanStepDef, type SheetAction, type SheetStatus } from '../lib/workflow.js';
+import { round2 } from '../lib/scoring.js';
 import { regenerateResults } from '../services/results-service.js';
 import { provisionPlanSharing } from '../services/sharing-service.js';
 import { createSnapshot } from '../services/snapshot-service.js';
@@ -28,6 +29,32 @@ const SCRATCH_FIELDS = new Set(['pending_action', 'action_reason']);
  * 在 after 阶段的清场写入上被自己拦下,快照与审核记录都不会执行。
  */
 const PLATFORM_STAMP_FIELDS = new Set(['created_at', 'created_by', 'updated_at', 'updated_by']);
+
+/**
+ * 汇总字段的小数位 —— 写入时按两位取整(#38 第 8 条)。
+ *
+ * `indicator_score` / `bonus_total` / `weight_total` 是平台 summary 字段(对明细求和),
+ * 求和是浮点相加,一串两位小数加出来就是 `91.75999999999999`;同一行的「最终得分」是
+ * 声明了 `scale: 2` 的 formula 字段,显示得干干净净 —— 两个数并排,前者比后者多十几位,
+ * 用户看到的是「系统算错了」。
+ *
+ * 取整放在写入闸上:汇总重算经本 hook 落库,拦在这里,列表、表单、导出、快照读的都是
+ * 同一个已取整的值。**计分口径不动** —— 舍入规则仍是 `lib/scoring.ts` 的 `round2`,这里
+ * 只是调用它,不另立一套。(更彻底的做法是给对象上的 summary 字段补 `scale`,顺带补齐
+ * 数字四件套,但那要动字段定义,超出本单范围,已在工作项上记录。)
+ */
+const SUMMARY_SCALE_2 = ['indicator_score', 'bonus_total', 'weight_total'] as const;
+
+function roundSummaryFields(input: Record<string, any>): void {
+  for (const field of SUMMARY_SCALE_2) {
+    if (!(field in input)) continue;
+    const raw = input[field];
+    if (raw === null || raw === undefined || raw === '') continue;
+    const n = typeof raw === 'number' ? raw : Number(raw);
+    if (!Number.isFinite(n)) continue;
+    input[field] = n < 0 ? -round2(-n) : round2(n);
+  }
+}
 
 /**
  * 填报单由方案发布生成;非系统上下文**一律**不能手工新建(#38 第 7 条)。
@@ -75,6 +102,10 @@ export const SheetTransitionHook: Hook = {
     const api = sys(ctx);
     const id = recordId(ctx);
     const action = input.pending_action as SheetAction | null | undefined;
+
+    // 汇总字段先取整再往下走:归档锁按「input 与 prev 是否不同」判改动,取整后与库里
+    // 已经是两位小数的值相等,不会被当成用户在改数据。
+    roundSummaryFields(input);
 
     if (!action) {
       // 免检只给纯系统写入(无发起人)。按钮的动作体带着发起人以「受信任」身份写入,
