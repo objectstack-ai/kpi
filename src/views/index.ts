@@ -140,15 +140,32 @@ export const EntrySheetViews = defineView({
   },
 });
 
-const lineCols = cols('sheet', 'indicator_name', 'unit', 'direction', 'scoring_method', 'target_value', 'weight', 'actual_value', 'completion_rate', 'score_rate', 'score', 'adjusted_score', 'is_adjusted', 'adjust_type_applied', 'final_score', 'remark');
+/**
+ * 填报明细列表列(#34):只留填报人当场要看的九项 + 「已调整」标记。
+ *
+ * 移出列表的 所属填报单 / 指标方向 / 计分方式 / 调整类型 / 调整后得分 都是配置或留痕字段 ——
+ * 填一行数时用不上,却把「实际值」挤到第 8 列开外。它们仍在记录页与导出里,不是删掉。
+ */
+const lineCols = cols('indicator_name', 'unit', 'target_value', 'weight', 'actual_value', 'completion_rate', 'score_rate', 'final_score', 'is_adjusted', 'remark');
 export const EntryLineViews = defineView({
   list: { label: '填报明细', type: 'grid', data: obj('kpi_entry_line'), columns: lineCols, inlineEdit: true, exportOptions: XLSX, sort: [{ field: 'indicator_name', order: 'asc' }] },
   listViews: {
     unfilled: { label: '未填实际值', type: 'grid', data: obj('kpi_entry_line'), columns: lineCols, inlineEdit: true, filter: [{ field: 'actual_value', operator: 'is_null' }] },
   },
+  /**
+   * 编辑表单只留「实际值」「备注」两个可写字段(#34)。
+   *
+   * 原来的「计分」分区把 完成率 / 得分率 / 指标得分 / 调整后得分 / 最终得分 一并摆进表单,
+   * 而本版本控制台的记录表单**提交表单上的全部字段**,不只提交改动过的那些:部门填报人员的
+   * 字段权限把 `score` / `adjusted_score` 标成不可写,于是只改一格实际值也会被服务端按
+   * 「写了不该写的字段」拒掉(平台侧 objectstack-ai/objectstack#15259)。把这些只读字段移出
+   * 表单,提交体里就不再带它们 —— 得分照样在记录页与列表里看得到,那是读的地方。
+   *
+   * 留下的业务字段一律显式 `readonly`:「所属填报单」「来源下达」是发布时冻结的归属,表单上
+   * 只该显示;不标的话控制台会给 lookup 画出可清除的 ✕,诱导一个必然被拒的写操作。
+   */
   formViews: { form: { type: 'simple', data: obj('kpi_entry_line'), sections: [
-    { name: 'entry', label: '填报', columns: 2, fields: [{ field: 'sheet', required: true }, { field: 'plan_indicator', required: true }, { field: 'indicator_name' }, { field: 'unit' }, { field: 'target_value' }, { field: 'weight' }, { field: 'actual_value' }, { field: 'remark' }] },
-    { name: 'score', label: '计分', columns: 2, fields: [{ field: 'direction' }, { field: 'scoring_method' }, { field: 'completion_rate' }, { field: 'score_rate' }, { field: 'score' }, { field: 'adjusted_score' }, { field: 'is_adjusted' }, { field: 'adjust_type_applied' }, { field: 'final_score' }, { field: 'last_adjustment' }, { field: 'calc_trace' }] },
+    { name: 'entry', label: '填报', columns: 2, fields: [{ field: 'sheet', readonly: true }, { field: 'plan_indicator', readonly: true }, { field: 'indicator_name', readonly: true }, { field: 'unit', readonly: true }, { field: 'target_value', readonly: true }, { field: 'weight', readonly: true }, { field: 'actual_value' }, { field: 'remark' }] },
   ] } },
 });
 

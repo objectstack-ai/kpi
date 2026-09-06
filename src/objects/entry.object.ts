@@ -147,6 +147,20 @@ export const EntryLine = ObjectSchema.create({
         { name: 'remark' },
         { name: 'is_adjusted' }, { name: 'adjust_type_applied' },
       ],
+      /**
+       * 填报单详情「相关」页签里那张填报明细表的列(#34)。
+       *
+       * 不声明时平台从子对象派生,派生出来的是 指标方向 / 计分方式 / 来源下达 / 指标 /
+       * 指标名称 / 计量单位 六列 —— 全是配置项,目标、权重、实际值、得分一个都没有,填报人
+       * 打开「相关」页签看不到自己填了什么、得了多少分。这里按《设计方案》5.4 的指标网格
+       * 口径显式列出。
+       *
+       * 只能声明在关系上:相关列表的列取自 子对象 highlightFields → 本键 → 页面块的
+       * `record:related_list.columns`,视图层没有这条链的入口(spec `field.zod.ts` 的
+       * `relatedListColumns` 说明)。与上面的 `inlineColumns` 不同,这里只收字段名字符串,
+       * 标签、类型、格式一律从子对象字段定义取,列与字段因此不会各说各话。
+       */
+      relatedListColumns: ['indicator_name', 'unit', 'target_value', 'weight', 'actual_value', 'completion_rate', 'score_rate', 'final_score', 'remark'],
     }),
     plan_indicator: Field.lookup('kpi_plan_indicator', { label: '来源下达', required: true }),
     indicator: Field.lookup('kpi_indicator', { label: '指标', readonly: true }),

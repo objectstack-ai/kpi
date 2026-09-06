@@ -423,9 +423,6 @@ export const zhCNTranslations: TranslationData = {
       _sections: {
         entry: {
           label: "填报"
-        },
-        score: {
-          label: "计分"
         }
       }
     },
