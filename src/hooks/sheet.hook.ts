@@ -30,11 +30,17 @@ const SCRATCH_FIELDS = new Set(['pending_action', 'action_reason']);
 const PLATFORM_STAMP_FIELDS = new Set(['created_at', 'created_by', 'updated_at', 'updated_by']);
 
 /**
- * 填报单由方案发布生成;非系统上下文不能手工新建。
+ * 填报单由方案发布生成;非系统上下文**一律**不能手工新建(#38 第 7 条)。
  *
- * 这里的免检仍按 `isSystem` 而不是「无发起人」:发布是**用户点**「发布方案」触发的,
- * 生成填报单由方案 hook 以带发起人的系统上下文完成,收紧会直接打断发布。填报单
- * 也没有任何 insert 型按钮,动作体到不了这条分支;REST 手工新建走非系统上下文,照拦。
+ * 管理员例外已取消:手工建出来的单没有方案、没有主体、没有明细,页头一渲染就崩
+ * (平台 objectstack-ai/objectstack#14888),而它没有任何合法用途 —— 填报单的唯一
+ * 来源是方案发布。留着这个口子只会产出残缺记录。
+ *
+ * 免检仍按 `isSystem` 而不是「无发起人」:发布是**用户点**「发布方案」触发的,生成
+ * 填报单由方案 hook 以带发起人的系统上下文完成,收紧会直接打断发布。填报单也没有
+ * 任何 insert 型按钮,动作体到不了这条分支;REST 手工新建走非系统上下文,照拦。
+ * 列表上的「新建」按钮由权限集的 `allowCreate: false` 收掉(security/index.ts),
+ * 这里是同一条边界在数据层的那一遍。
  */
 export const SheetInsertGuardHook: Hook = {
   name: 'kpi_sheet_insert_guard',
@@ -44,9 +50,7 @@ export const SheetInsertGuardHook: Hook = {
   priority: 100,
   handler: async (ctx: HookContext) => {
     if (isSystem(ctx)) return;
-    if (!(await hasPosition(ctx, 'kpi_admin'))) {
-      fail('新建填报单失败:填报单由考核方案发布时自动生成,不能手工新建。请在考核方案中发布方案。', 'KPI_SHEET_MANUAL_INSERT');
-    }
+    fail('新建填报单失败:填报单由考核方案发布时自动生成,不能手工新建。请在考核方案中发布方案。', 'KPI_SHEET_MANUAL_INSERT');
   },
 };
 
