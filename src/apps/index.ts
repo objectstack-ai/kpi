@@ -30,6 +30,25 @@ export const KpiApp = App.create({
       id: 'group_entry', type: 'group', label: '填报与审核', icon: 'file-spreadsheet',
       children: [
         { id: 'nav_sheets', type: 'object', objectName: 'kpi_entry_sheet', label: '填报单', icon: 'file-spreadsheet' },
+        // ── 三个待办直达项(#36)──────────────────────────────────────────
+        // 队列本来就有(`EntrySheetViews.listViews.hr` / `.leader`、
+        // `CheckTaskViews.listViews.pending`),问题在够不着:填报单有 8 个具名列表视图,
+        // 页签栏放不下就把后几个折进「还有 N 个」溢出菜单,「待领导审批」正好落在里面 ——
+        // 分管领导是唯一按手册找不到自己队列的角色(平台
+        // objectstack-ai/objectstack#14883、#14952)。这里用 `viewName` 从侧边栏直指
+        // 那三个视图,把「点组 → 点填报单 → 展开溢出菜单 → 点页签」压成一次点击。
+        //
+        // 用 `viewName` 而不是 `filters`:两者互斥(spec `app.zod.ts` 的
+        // `assertNavTargetExclusivity`,`filters` 落到 `/:objectName/data` 裸数据面),
+        // 而具名视图已经带好了列与过滤,重复一遍只会多一处会跟视图走散的真值。
+        //
+        // 这三项**不加** `requiredPermissions`:它们指向的对象在所有岗位的权限集里都有读权,
+        // 看得到几行由数据范围决定(部门填报人员点进「待人力审核」是一张空表,不是报错)。
+        // 加能力闸门等于把「配置类菜单按岗位裁剪」的口径套到待办上,反而挡掉本该用它的人。
+        { id: 'nav_my_checks', type: 'object', objectName: 'kpi_check_task', viewName: 'pending', label: '待我核对', icon: 'clipboard-check' },
+        { id: 'nav_hr_queue', type: 'object', objectName: 'kpi_entry_sheet', viewName: 'hr', label: '待人力审核', icon: 'user-check' },
+        { id: 'nav_leader_queue', type: 'object', objectName: 'kpi_entry_sheet', viewName: 'leader', label: '待领导审批', icon: 'shield-check' },
+        // ── 全量入口 ────────────────────────────────────────────────────
         { id: 'nav_lines', type: 'object', objectName: 'kpi_entry_line', label: '填报明细', icon: 'table' },
         { id: 'nav_checks', type: 'object', objectName: 'kpi_check_task', label: '分公司核对', icon: 'clipboard-check' },
         { id: 'nav_bonus', type: 'object', objectName: 'kpi_bonus', label: '加减分', icon: 'plus-minus' },
