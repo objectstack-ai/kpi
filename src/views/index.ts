@@ -161,11 +161,24 @@ export const EntryLineViews = defineView({
    * 「写了不该写的字段」拒掉(平台侧 objectstack-ai/objectstack#15259)。把这些只读字段移出
    * 表单,提交体里就不再带它们 —— 得分照样在记录页与列表里看得到,那是读的地方。
    *
-   * 留下的业务字段一律显式 `readonly`:「所属填报单」「来源下达」是发布时冻结的归属,表单上
-   * 只该显示;不标的话控制台会给 lookup 画出可清除的 ✕,诱导一个必然被拒的写操作。
+   * 「所属填报单」「来源下达」标 `immutable` 而不是 `readonly`(评审 F1)。两者在对象上都是
+   * `required: true`,而这是**唯一**一个 formView,新建与编辑共用:标 `readonly` 时控制台把
+   * 两个必填 lookup 的「选择…」按钮一起 `disabled`,管理员与人力审核点「新建」只能得到
+   * 「所属填报单不能为空、来源下达不能为空」,表单永远提交不了。`immutable`(spec
+   * `ui/view.zod.ts`:Editable on create, locked once the record exists)正是为这两种场景
+   * 分开设的键,换上后管理员实测新建成功。
+   *
+   * ⚠️ 实测边界,别按字面理解:本版控制台**只落实了 `immutable` 的前半句**。编辑弹窗里这两个
+   * lookup 的「选择…」按钮仍是 enabled(`button.disabled === false`),没有「记录存在后锁死」
+   * 的表现。也就是说,归属字段在编辑表单上并没有 UI 锁 —— 这与改动前主干上的行为一致
+   * (主干这两个字段只有 `required`,同样可改),不是本次新开的口子;真正的护栏在数据层:
+   * `writeScope: 'own'` 让填报人只够得到自己那张单。另一条路(给「新建」单独一个
+   * `formViews.create`)也实测过:控制台的「新建」仍然渲染 `formViews.form`,新建与编辑
+   * 不按名字分流,因此这条路不成立。其余业务字段在对象定义上本就是 `readonly`,这里的标记
+   * 只是让表单显式一致。
    */
   formViews: { form: { type: 'simple', data: obj('kpi_entry_line'), sections: [
-    { name: 'entry', label: '填报', columns: 2, fields: [{ field: 'sheet', readonly: true }, { field: 'plan_indicator', readonly: true }, { field: 'indicator_name', readonly: true }, { field: 'unit', readonly: true }, { field: 'target_value', readonly: true }, { field: 'weight', readonly: true }, { field: 'actual_value' }, { field: 'remark' }] },
+    { name: 'entry', label: '填报', columns: 2, fields: [{ field: 'sheet', immutable: true }, { field: 'plan_indicator', immutable: true }, { field: 'indicator_name', readonly: true }, { field: 'unit', readonly: true }, { field: 'target_value', readonly: true }, { field: 'weight', readonly: true }, { field: 'actual_value' }, { field: 'remark' }] },
   ] } },
 });
 
