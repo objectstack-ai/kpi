@@ -121,9 +121,31 @@ export const EntryLine = ObjectSchema.create({
   nameField: 'indicator_name',
 
   fields: {
+    /**
+     * 归属两键(`sheet` / `plan_indicator`)的「新建可填、建完锁定」(#34)。
+     *
+     * 这两个键决定一行明细挂在哪张填报单、对应哪条下达指标 —— 新建时必须能选(否则
+     * 「新建」是死路),建成之后改任何一个都等于把这行悄悄挪走,连带 指标名称 /
+     * 计量单位 / 目标值 / 权重 四个冻结字段与已算出的得分全部对不上账。
+     *
+     * `readonlyWhen: 'record.id != null'` —— 新记录没有 id,谓词判假,两个 lookup 正常
+     * 可选;已存在的记录判真,编辑面渲染为只读文本。声明在对象层,所有展示面(记录
+     * 编辑弹窗、内嵌网格、相关列表)一致生效;平台约定 `readonlyWhen` 不在创建路径上
+     * 锁字段,所以 hook 与种子的建行路径不受影响。
+     *
+     * 与视图层 `immutable` 的分工:`src/views/index.ts` 的表单里这两个字段标了
+     * `immutable: true`(语义即「可建不可改」),但本版控制台只落实了它的前半句 ——
+     * 编辑弹窗里仍渲染带 ✕ 的选择器。**视图层 immutable 待平台修复**
+     * (objectstack-ai/objectstack#16171),**对象层 readonlyWhen 为应用侧兜底**;
+     * 平台修好后两者语义一致、可共存,不必回删。
+     *
+     * 注意这是 UI/写入面的护栏而非权限闸门:数据层真护栏仍是 `src/security/index.ts`
+     * 的 `writeScope` 与 `src/hooks/entry-line.hook.ts` 的冻结守卫。
+     */
     sheet: Field.masterDetail('kpi_entry_sheet', {
       label: '所属填报单',
       required: true,
+      readonlyWhen: 'record.id != null',
       deleteBehavior: 'cascade',
       inlineEdit: 'grid',
       inlineTitle: '指标填报',
@@ -147,8 +169,23 @@ export const EntryLine = ObjectSchema.create({
         { name: 'remark' },
         { name: 'is_adjusted' }, { name: 'adjust_type_applied' },
       ],
+      /**
+       * 填报单详情「相关」页签里那张填报明细表的列(#34)。
+       *
+       * 不声明时平台从子对象派生,派生出来的是 指标方向 / 计分方式 / 来源下达 / 指标 /
+       * 指标名称 / 计量单位 六列 —— 全是配置项,目标、权重、实际值、得分一个都没有,填报人
+       * 打开「相关」页签看不到自己填了什么、得了多少分。这里按《设计方案》5.4 的指标网格
+       * 口径显式列出。
+       *
+       * 只能声明在关系上:相关列表的列取自 子对象 highlightFields → 本键 → 页面块的
+       * `record:related_list.columns`,视图层没有这条链的入口(spec `field.zod.ts` 的
+       * `relatedListColumns` 说明)。与上面的 `inlineColumns` 不同,这里只收字段名字符串,
+       * 标签、类型、格式一律从子对象字段定义取,列与字段因此不会各说各话。
+       */
+      relatedListColumns: ['indicator_name', 'unit', 'target_value', 'weight', 'actual_value', 'completion_rate', 'score_rate', 'final_score', 'remark'],
     }),
-    plan_indicator: Field.lookup('kpi_plan_indicator', { label: '来源下达', required: true }),
+    /** 建完锁定,理由与 `sheet` 上方那段注释同源(#34)。 */
+    plan_indicator: Field.lookup('kpi_plan_indicator', { label: '来源下达', required: true, readonlyWhen: 'record.id != null' }),
     indicator: Field.lookup('kpi_indicator', { label: '指标', readonly: true }),
     indicator_name: Field.text({ label: '指标名称', readonly: true, searchable: true, maxLength: 200 }),
     unit: Field.text({ label: '计量单位', readonly: true, maxLength: 20 }),

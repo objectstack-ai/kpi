@@ -140,15 +140,45 @@ export const EntrySheetViews = defineView({
   },
 });
 
-const lineCols = cols('sheet', 'indicator_name', 'unit', 'direction', 'scoring_method', 'target_value', 'weight', 'actual_value', 'completion_rate', 'score_rate', 'score', 'adjusted_score', 'is_adjusted', 'adjust_type_applied', 'final_score', 'remark');
+/**
+ * 填报明细列表列(#34):只留填报人当场要看的九项 + 「已调整」标记。
+ *
+ * 移出列表的 所属填报单 / 指标方向 / 计分方式 / 调整类型 / 调整后得分 都是配置或留痕字段 ——
+ * 填一行数时用不上,却把「实际值」挤到第 8 列开外。它们仍在记录页与导出里,不是删掉。
+ */
+const lineCols = cols('indicator_name', 'unit', 'target_value', 'weight', 'actual_value', 'completion_rate', 'score_rate', 'final_score', 'is_adjusted', 'remark');
 export const EntryLineViews = defineView({
   list: { label: '填报明细', type: 'grid', data: obj('kpi_entry_line'), columns: lineCols, inlineEdit: true, exportOptions: XLSX, sort: [{ field: 'indicator_name', order: 'asc' }] },
   listViews: {
     unfilled: { label: '未填实际值', type: 'grid', data: obj('kpi_entry_line'), columns: lineCols, inlineEdit: true, filter: [{ field: 'actual_value', operator: 'is_null' }] },
   },
+  /**
+   * 编辑表单只留「实际值」「备注」两个可写字段(#34)。
+   *
+   * 原来的「计分」分区把 完成率 / 得分率 / 指标得分 / 调整后得分 / 最终得分 一并摆进表单,
+   * 而本版本控制台的记录表单**提交表单上的全部字段**,不只提交改动过的那些:部门填报人员的
+   * 字段权限把 `score` / `adjusted_score` 标成不可写,于是只改一格实际值也会被服务端按
+   * 「写了不该写的字段」拒掉(平台侧 objectstack-ai/objectstack#15259)。把这些只读字段移出
+   * 表单,提交体里就不再带它们 —— 得分照样在记录页与列表里看得到,那是读的地方。
+   *
+   * 「所属填报单」「来源下达」标 `immutable` 而不是 `readonly`(评审 F1)。两者在对象上都是
+   * `required: true`,而这是**唯一**一个 formView,新建与编辑共用:标 `readonly` 时控制台把
+   * 两个必填 lookup 的「选择…」按钮一起 `disabled`,管理员与人力审核点「新建」只能得到
+   * 「所属填报单不能为空、来源下达不能为空」,表单永远提交不了。`immutable`(spec
+   * `ui/view.zod.ts`:Editable on create, locked once the record exists)正是为这两种场景
+   * 分开设的键,换上后管理员实测新建成功。
+   *
+   * ⚠️ 实测边界,别按字面理解:本版控制台**只落实了 `immutable` 的前半句**。编辑弹窗里这两个
+   * lookup 的「选择…」按钮仍是 enabled(`button.disabled === false`),没有「记录存在后锁死」
+   * 的表现。也就是说,归属字段在编辑表单上并没有 UI 锁 —— 这与改动前主干上的行为一致
+   * (主干这两个字段只有 `required`,同样可改),不是本次新开的口子;真正的护栏在数据层:
+   * `writeScope: 'own'` 让填报人只够得到自己那张单。另一条路(给「新建」单独一个
+   * `formViews.create`)也实测过:控制台的「新建」仍然渲染 `formViews.form`,新建与编辑
+   * 不按名字分流,因此这条路不成立。其余业务字段在对象定义上本就是 `readonly`,这里的标记
+   * 只是让表单显式一致。
+   */
   formViews: { form: { type: 'simple', data: obj('kpi_entry_line'), sections: [
-    { name: 'entry', label: '填报', columns: 2, fields: [{ field: 'sheet', required: true }, { field: 'plan_indicator', required: true }, { field: 'indicator_name' }, { field: 'unit' }, { field: 'target_value' }, { field: 'weight' }, { field: 'actual_value' }, { field: 'remark' }] },
-    { name: 'score', label: '计分', columns: 2, fields: [{ field: 'direction' }, { field: 'scoring_method' }, { field: 'completion_rate' }, { field: 'score_rate' }, { field: 'score' }, { field: 'adjusted_score' }, { field: 'is_adjusted' }, { field: 'adjust_type_applied' }, { field: 'final_score' }, { field: 'last_adjustment' }, { field: 'calc_trace' }] },
+    { name: 'entry', label: '填报', columns: 2, fields: [{ field: 'sheet', immutable: true }, { field: 'plan_indicator', immutable: true }, { field: 'indicator_name', readonly: true }, { field: 'unit', readonly: true }, { field: 'target_value', readonly: true }, { field: 'weight', readonly: true }, { field: 'actual_value' }, { field: 'remark' }] },
   ] } },
 });
 

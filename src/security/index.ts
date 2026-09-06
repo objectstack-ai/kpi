@@ -110,7 +110,15 @@ export const DeptReporterPermissionSet = definePermissionSet({
     kpi_staff_assignment: readOwn, kpi_personal_item: { allowRead: true, readScope: 'org' },
     // 填报单 OWD 为 private:本部门可见性由方案发布时写入的动态共享规则(services/sharing-service.ts)从 own 放宽到本单元
     kpi_entry_sheet: { allowRead: true, allowCreate: false, allowEdit: true, allowDelete: false, allowExport: true, readScope: 'own', writeScope: 'own' },
-    kpi_entry_line: { allowRead: true, allowCreate: true, allowEdit: true, allowDelete: true, allowExport: true, readScope: 'own', writeScope: 'own' },
+    // 填报明细只由方案发布生成:`allowCreate: false` 让「新建」在填报明细列表与填报单
+    // 「相关」页签里都不再出现 —— 手工新建一行明细既没有冻结的目标值与权重,也不在任何
+    // 指标下达之下,计分引擎算不出分,是一条注定作废的行。导入路径不受影响:导入填的是
+    // 已生成行的实际值,走的是 `allowEdit`。
+    // `allowDelete` 与它一起关:删除守卫(EntryLineDeleteGuardHook)只在填报单离开
+    // 「填报中」之后才拦,留着删除权就等于允许填报人在填报期删掉发布生成的行 —— 新建已关,
+    // 删掉就没有任何重建路径,而提交闸门只数「实际值为空」的行,缺行的单能干净地提交,
+    // 权重合计与指标得分静默少掉一块。明细的增删只由方案发布与数据调整负责。
+    kpi_entry_line: { allowRead: true, allowCreate: false, allowEdit: true, allowDelete: false, allowExport: true, readScope: 'own', writeScope: 'own' },
     kpi_check_task: { allowRead: true, readScope: 'own' },
     // 审核记录:只见本部门填报单的留痕(共享规则按填报单放宽)。
     kpi_review_record: readOwn,
