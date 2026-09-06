@@ -1,6 +1,6 @@
 import type { Hook, HookContext } from '@objectstack/spec/data';
 import { actorId, fail, findById, hasPosition, isSystem, isSystemWrite, merged, nowIso, recordId, sys, sysNoActor, writeReview } from './util.js';
-import { requiredPositionFor, STATUS_LABEL, transition, type PlanStepDef, type SheetAction, type SheetStatus } from '../lib/workflow.js';
+import { requiredPositionFor, STATUS_LABEL, STEP_LABEL, transition, type PlanStepDef, type SheetAction, type SheetStatus } from '../lib/workflow.js';
 import { regenerateResults } from '../services/results-service.js';
 import { provisionPlanSharing } from '../services/sharing-service.js';
 import { createSnapshot } from '../services/snapshot-service.js';
@@ -100,7 +100,14 @@ export const SheetTransitionHook: Hook = {
     // (hasPosition 的免检只留给无发起人的纯系统写入)。
     const required = requiredPositionFor(steps, fromStatus, action);
     if (!(await hasPosition(ctx, required))) {
-      fail(`操作失败:当前节点「${result.atStepDef?.label ?? STATUS_LABEL[fromStatus]}」需要由对应岗位处理,你没有该岗位。如需处理,请联系管理员分配岗位。`, 'KPI_SHEET_POSITION');
+      // 文案取「实际要求的那个节点」,不是 transition 给的 atStepDef(#38 第 5 条)。
+      // 归档不落在任何流程节点上 —— `requiredPositionFor` 对它固定要人力审核岗位,而
+      // `atStepDef` 是流程的最后一个节点(通常是「领导审批」)。照 atStepDef 写,提示就会
+      // 把人指到一个跟这次拒绝无关的节点上。规则不动,只改文案取值。
+      const gateStep = action === 'archive' ? steps.find((s) => s.step_type === 'hr_review') ?? null : result.atStepDef;
+      const gateLabel = gateStep?.label ?? (gateStep ? STEP_LABEL[gateStep.step_type] : null)
+        ?? (action === 'archive' ? STEP_LABEL.hr_review : STATUS_LABEL[fromStatus]);
+      fail(`操作失败:当前节点「${gateLabel}」需要由对应岗位处理,你没有该岗位。如需处理,请联系管理员分配岗位。`, 'KPI_SHEET_POSITION');
     }
 
     const reason = typeof input.action_reason === 'string' ? input.action_reason.trim() : '';
