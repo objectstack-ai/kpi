@@ -1226,6 +1226,15 @@ export const zhCNTranslations: TranslationData = {
         nav_sheets: {
           label: "填报单"
         },
+        nav_my_checks: {
+          label: "待我核对"
+        },
+        nav_hr_queue: {
+          label: "待人力审核"
+        },
+        nav_leader_queue: {
+          label: "待领导审批"
+        },
         nav_lines: {
           label: "填报明细"
         },
