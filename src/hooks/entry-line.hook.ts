@@ -5,6 +5,19 @@ import { scoreLine } from '../services/scoring-service.js';
 const EDITABLE_AFTER_SUBMIT = new Set(['remark']);
 
 /**
+ * 冻结提示按填报单状态分岔(#38 第 3 条)。
+ *
+ * 「已提交」和「已归档」是两种不同的锁,出口也不同:提交后还能走数据调整申请更正,
+ * 归档后连数据调整都被拒(adjustment.hook 的归档闸),再让提示指向数据调整就是把人
+ * 支去一条走不通的路。三段式不变:什么失败、为什么、怎么办。
+ */
+function lockedMessage(action: '修改' | '删除', sheetStatus: unknown): string {
+  return sheetStatus === 'archived'
+    ? `${action}填报明细失败:填报单已归档,数据已锁定不可再改。归档数据不能更正,如有疑问请联系人力审核。`
+    : `${action}填报明细失败:填报单已提交,数据已冻结。如需更正,请发起数据调整申请。`;
+}
+
+/**
  * 填报明细 —— 即时算分 + 提交后锁定(蓝图 B-M4-02 / B-M4-03)。
  *
  * 每一次写入(表单、内联网格、导入、调整落地)都经这里:
@@ -29,7 +42,7 @@ export const EntryLineScoreHook: Hook = {
       if (sheet && sheet.status !== 'draft') {
         const touched = Object.keys(input).filter((k) => k !== 'id' && !EDITABLE_AFTER_SUBMIT.has(k) && input[k] !== (ctx.previous as any)?.[k]);
         if (touched.length > 0) {
-          fail('修改填报明细失败:填报单已提交,数据已冻结。如需更正,请发起数据调整申请。', 'KPI_LINE_LOCKED');
+          fail(lockedMessage('修改', sheet.status), 'KPI_LINE_LOCKED');
         }
         return;
       }
@@ -67,7 +80,7 @@ export const EntryLineDeleteGuardHook: Hook = {
     const prev = ctx.previous as Record<string, any> | undefined;
     const sheet = await findById(sys(ctx), 'kpi_entry_sheet', prev?.sheet);
     if (sheet && sheet.status !== 'draft') {
-      fail('删除填报明细失败:填报单已提交,数据已冻结。如需更正,请发起数据调整申请。', 'KPI_LINE_LOCKED');
+      fail(lockedMessage('删除', sheet.status), 'KPI_LINE_LOCKED');
     }
   },
 };

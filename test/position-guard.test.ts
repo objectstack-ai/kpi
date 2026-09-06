@@ -413,7 +413,8 @@ describe('归档 after 阶段 —— 清场写入不能被自己的归档锁拦�
 
     const reviews = store.kpi_review_record ?? [];
     expect(reviews.map((r) => r.action)).toContain('archive');
-    expect(reviews.find((r) => r.action === 'archive')?.to_status).toBe('archived');
+    // 留痕的原状态 / 新状态写中文(#38 第 1 条):审核记录是给人看的审计视图,列表直出字段值。
+    expect(reviews.find((r) => r.action === 'archive')?.to_status).toBe('已归档');
 
     const snapshots = store.kpi_snapshot ?? [];
     expect(snapshots).toHaveLength(1);

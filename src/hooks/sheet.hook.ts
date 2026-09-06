@@ -1,6 +1,7 @@
 import type { Hook, HookContext } from '@objectstack/spec/data';
 import { actorId, fail, findById, hasPosition, isSystem, isSystemWrite, merged, nowIso, recordId, sys, sysNoActor, writeReview } from './util.js';
-import { requiredPositionFor, STATUS_LABEL, transition, type PlanStepDef, type SheetAction, type SheetStatus } from '../lib/workflow.js';
+import { requiredPositionFor, STATUS_LABEL, STEP_LABEL, transition, type PlanStepDef, type SheetAction, type SheetStatus } from '../lib/workflow.js';
+import { round2 } from '../lib/scoring.js';
 import { regenerateResults } from '../services/results-service.js';
 import { provisionPlanSharing } from '../services/sharing-service.js';
 import { createSnapshot } from '../services/snapshot-service.js';
@@ -30,11 +31,43 @@ const SCRATCH_FIELDS = new Set(['pending_action', 'action_reason']);
 const PLATFORM_STAMP_FIELDS = new Set(['created_at', 'created_by', 'updated_at', 'updated_by']);
 
 /**
- * 填报单由方案发布生成;非系统上下文不能手工新建。
+ * 汇总字段的小数位 —— 写入时按两位取整(#38 第 8 条)。
  *
- * 这里的免检仍按 `isSystem` 而不是「无发起人」:发布是**用户点**「发布方案」触发的,
- * 生成填报单由方案 hook 以带发起人的系统上下文完成,收紧会直接打断发布。填报单
- * 也没有任何 insert 型按钮,动作体到不了这条分支;REST 手工新建走非系统上下文,照拦。
+ * `indicator_score` / `bonus_total` / `weight_total` 是平台 summary 字段(对明细求和),
+ * 求和是浮点相加,一串两位小数加出来就是 `91.75999999999999`;同一行的「最终得分」是
+ * 声明了 `scale: 2` 的 formula 字段,显示得干干净净 —— 两个数并排,前者比后者多十几位,
+ * 用户看到的是「系统算错了」。
+ *
+ * 取整放在写入闸上:汇总重算经本 hook 落库,拦在这里,列表、表单、导出、快照读的都是
+ * 同一个已取整的值。**计分口径不动** —— 舍入规则仍是 `lib/scoring.ts` 的 `round2`,这里
+ * 只是调用它,不另立一套。(更彻底的做法是给对象上的 summary 字段补 `scale`,顺带补齐
+ * 数字四件套,但那要动字段定义,超出本单范围,已在工作项上记录。)
+ */
+const SUMMARY_SCALE_2 = ['indicator_score', 'bonus_total', 'weight_total'] as const;
+
+function roundSummaryFields(input: Record<string, any>): void {
+  for (const field of SUMMARY_SCALE_2) {
+    if (!(field in input)) continue;
+    const raw = input[field];
+    if (raw === null || raw === undefined || raw === '') continue;
+    const n = typeof raw === 'number' ? raw : Number(raw);
+    if (!Number.isFinite(n)) continue;
+    input[field] = n < 0 ? -round2(-n) : round2(n);
+  }
+}
+
+/**
+ * 填报单由方案发布生成;非系统上下文**一律**不能手工新建(#38 第 7 条)。
+ *
+ * 管理员例外已取消:手工建出来的单没有方案、没有主体、没有明细,页头一渲染就崩
+ * (平台 objectstack-ai/objectstack#14888),而它没有任何合法用途 —— 填报单的唯一
+ * 来源是方案发布。留着这个口子只会产出残缺记录。
+ *
+ * 免检仍按 `isSystem` 而不是「无发起人」:发布是**用户点**「发布方案」触发的,生成
+ * 填报单由方案 hook 以带发起人的系统上下文完成,收紧会直接打断发布。填报单也没有
+ * 任何 insert 型按钮,动作体到不了这条分支;REST 手工新建走非系统上下文,照拦。
+ * 列表上的「新建」按钮由权限集的 `allowCreate: false` 收掉(security/index.ts),
+ * 这里是同一条边界在数据层的那一遍。
  */
 export const SheetInsertGuardHook: Hook = {
   name: 'kpi_sheet_insert_guard',
@@ -44,9 +77,7 @@ export const SheetInsertGuardHook: Hook = {
   priority: 100,
   handler: async (ctx: HookContext) => {
     if (isSystem(ctx)) return;
-    if (!(await hasPosition(ctx, 'kpi_admin'))) {
-      fail('新建填报单失败:填报单由考核方案发布时自动生成,不能手工新建。请在考核方案中发布方案。', 'KPI_SHEET_MANUAL_INSERT');
-    }
+    fail('新建填报单失败:填报单由考核方案发布时自动生成,不能手工新建。请在考核方案中发布方案。', 'KPI_SHEET_MANUAL_INSERT');
   },
 };
 
@@ -71,6 +102,10 @@ export const SheetTransitionHook: Hook = {
     const api = sys(ctx);
     const id = recordId(ctx);
     const action = input.pending_action as SheetAction | null | undefined;
+
+    // 汇总字段先取整再往下走:归档锁按「input 与 prev 是否不同」判改动,取整后与库里
+    // 已经是两位小数的值相等,不会被当成用户在改数据。
+    roundSummaryFields(input);
 
     if (!action) {
       // 免检只给纯系统写入(无发起人)。按钮的动作体带着发起人以「受信任」身份写入,
@@ -100,7 +135,14 @@ export const SheetTransitionHook: Hook = {
     // (hasPosition 的免检只留给无发起人的纯系统写入)。
     const required = requiredPositionFor(steps, fromStatus, action);
     if (!(await hasPosition(ctx, required))) {
-      fail(`操作失败:当前节点「${result.atStepDef?.label ?? STATUS_LABEL[fromStatus]}」需要由对应岗位处理,你没有该岗位。如需处理,请联系管理员分配岗位。`, 'KPI_SHEET_POSITION');
+      // 文案取「实际要求的那个节点」,不是 transition 给的 atStepDef(#38 第 5 条)。
+      // 归档不落在任何流程节点上 —— `requiredPositionFor` 对它固定要人力审核岗位,而
+      // `atStepDef` 是流程的最后一个节点(通常是「领导审批」)。照 atStepDef 写,提示就会
+      // 把人指到一个跟这次拒绝无关的节点上。规则不动,只改文案取值。
+      const gateStep = action === 'archive' ? steps.find((s) => s.step_type === 'hr_review') ?? null : result.atStepDef;
+      const gateLabel = gateStep?.label ?? (gateStep ? STEP_LABEL[gateStep.step_type] : null)
+        ?? (action === 'archive' ? STEP_LABEL.hr_review : STATUS_LABEL[fromStatus]);
+      fail(`操作失败:当前节点「${gateLabel}」需要由对应岗位处理,你没有该岗位。如需处理,请联系管理员分配岗位。`, 'KPI_SHEET_POSITION');
     }
 
     const reason = typeof input.action_reason === 'string' ? input.action_reason.trim() : '';

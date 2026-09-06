@@ -93,7 +93,7 @@ export const zhCNTranslations: TranslationData = {
           successMessage: "调整申请已否决。",
           params: {
             decision_reason: {
-              label: "否决原因(必填)"
+              label: "否决原因"
             }
           }
         },
@@ -232,7 +232,7 @@ export const zhCNTranslations: TranslationData = {
           successMessage: "已记录争议,请与填报部门协商后再确认。",
           params: {
             comment: {
-              label: "争议内容(必填)"
+              label: "争议内容"
             }
           }
         }
@@ -298,7 +298,7 @@ export const zhCNTranslations: TranslationData = {
           successMessage: "争议已采纳,请据此调整指标下达。",
           params: {
             resolution: {
-              label: "处理结论(必填)"
+              label: "处理结论"
             }
           }
         },
@@ -307,7 +307,7 @@ export const zhCNTranslations: TranslationData = {
           successMessage: "争议已关闭(不采纳)。",
           params: {
             resolution: {
-              label: "处理结论(必填)"
+              label: "处理结论"
             }
           }
         }
@@ -528,7 +528,7 @@ export const zhCNTranslations: TranslationData = {
           successMessage: "已驳回,填报单退回上一节点。",
           params: {
             reason: {
-              label: "驳回原因(必填)"
+              label: "驳回原因"
             }
           }
         },
@@ -1346,7 +1346,7 @@ export const zhCNTranslations: TranslationData = {
           title: "最低得分"
         },
         bar_unit: {
-          title: "各组织单元平均得分"
+          title: "各组织单元平均得分(部门 / 分公司)"
         },
         bar_person: {
           title: "人员得分"

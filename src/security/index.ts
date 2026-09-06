@@ -45,6 +45,16 @@ const readOwn = { allowRead: true, allowCreate: false, allowEdit: false, allowDe
 const readOwnChild = readOwn;
 const editOrg = { allowRead: true, allowCreate: true, allowEdit: true, allowDelete: false, allowExport: true, readScope: 'org', writeScope: 'org' } as const;
 
+/**
+ * 填报单:谁都不能手工新建(#38 第 7 条)。
+ *
+ * 填报单的唯一来源是方案发布(`plan.hook` 以系统上下文写入,不过权限集),手工建出来
+ * 的单没有方案、没有主体、没有明细,页头一渲染就崩(平台 objectstack-ai/objectstack#14888)。
+ * `allowCreate: false` 让「新建」在填报单列表与相关页签里都不出现;数据层的同一条边界
+ * 由 `SheetInsertGuardHook` 兜底(声明与执行一致,口径同 `kpi_entry_line`)。
+ */
+const noManualCreate = { allowCreate: false } as const;
+
 const PLATFORM_READ = {
   sys_business_unit: { allowRead: true, readScope: 'org' },
   sys_user: { allowRead: true, readScope: 'org' },
@@ -59,7 +69,7 @@ export const AdminPermissionSet = definePermissionSet({
     kpi_indicator: full, kpi_indicator_step: full,
     kpi_plan: full, kpi_plan_step: full, kpi_plan_subject: full, kpi_plan_indicator: full, kpi_dispute: full,
     kpi_staff_assignment: full, kpi_personal_item: full,
-    kpi_entry_sheet: full, kpi_entry_line: full, kpi_check_task: full, kpi_review_record: readOrg,
+    kpi_entry_sheet: { ...full, ...noManualCreate }, kpi_entry_line: full, kpi_check_task: full, kpi_review_record: readOrg,
     kpi_bonus: full, kpi_adjustment: full, kpi_result: readOrg, kpi_snapshot: readOrg,
     sys_business_unit: { allowRead: true, allowCreate: true, allowEdit: true, readScope: 'org', writeScope: 'org' },
     sys_user: { allowRead: true, readScope: 'org' },
@@ -75,7 +85,7 @@ export const HrReviewerPermissionSet = definePermissionSet({
     kpi_indicator: full, kpi_indicator_step: full,
     kpi_plan: full, kpi_plan_step: full, kpi_plan_subject: full, kpi_plan_indicator: full, kpi_dispute: editOrg,
     kpi_staff_assignment: full, kpi_personal_item: full,
-    kpi_entry_sheet: editOrg, kpi_entry_line: editOrg, kpi_check_task: readOrg, kpi_review_record: readOrg,
+    kpi_entry_sheet: { ...editOrg, ...noManualCreate }, kpi_entry_line: editOrg, kpi_check_task: readOrg, kpi_review_record: readOrg,
     kpi_bonus: editOrg, kpi_adjustment: editOrg, kpi_result: readOrg, kpi_snapshot: readOrg,
     ...PLATFORM_READ,
   },

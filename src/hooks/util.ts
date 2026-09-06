@@ -1,4 +1,5 @@
 import type { HookContext } from '@objectstack/spec/data';
+import { statusLabel } from '../lib/workflow.js';
 
 /** 平台 IScopedContext 的运行时实现带 `sudo()`(系统上下文:可写只读字段、绕过数据范围)。 */
 export interface Repo {
@@ -143,6 +144,12 @@ export async function nameOf(api: Api, object: string, id: string | null | undef
   return (row?.name as string | undefined) ?? fallback;
 }
 
+/**
+ * 写一条审核记录 —— 全系统留痕的唯一入口(流程推进、核对、调整落地、方案发布都经这里)。
+ *
+ * 原状态 / 新状态按 {@link statusLabel} 写中文:这两个字段是文本字段、列表直出,写内部值
+ * 就是把 `draft` / `branch_checking` 摆给用户看。转换放在这一处,四个调用点一次覆盖。
+ */
 export async function writeReview(
   api: Api,
   data: {
@@ -159,8 +166,8 @@ export async function writeReview(
     sheet: data.sheet,
     action: data.action,
     step_label: data.step_label ?? null,
-    from_status: data.from_status ?? null,
-    to_status: data.to_status ?? null,
+    from_status: statusLabel(data.from_status),
+    to_status: statusLabel(data.to_status),
     actor: data.actor ?? null,
     reason: data.reason ?? null,
     acted_at: nowIso(),

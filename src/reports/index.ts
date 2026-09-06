@@ -21,7 +21,9 @@ export const PersonScoresReport = defineReport({
   type: 'summary',
   drilldown: true,
   dataset: 'kpi_result_metrics',
-  rows: ['person', 'dimension'],
+  // 行维度用 `person_label`(结果记录的名称,含姓名):`person` 出的是原始用户 id,
+  // 平台的数据集维度解析只认 lookup 字段、不认 user 字段(见 datasets/index.ts 的说明)。
+  rows: ['person_label', 'dimension'],
   values: ['avg_score', 'sum_weighted'],
   runtimeFilter: { dimension: { $in: ['person', 'leader'] } },
 });
