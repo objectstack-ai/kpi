@@ -55,6 +55,10 @@ export const AdjustmentHook: Hook = {
       input.subject = sheet?.subject ?? null;
       input.old_value = row.adjust_type === 'result' ? toNumber(line.final_score) : toNumber(line.actual_value);
       if (!input.requested_by) input.requested_by = actorId(ctx);
+      // 状态默认「草稿」(#37):申请表单不再让填报人员选状态,新建一律从草稿起步,再点「提交审批」。
+      // 只在**输入未带 status** 时补 —— 带了状态的写入(按钮、脚本、导入)行为一个字不变,
+      // 合法性仍由对象上的状态机(`initialStates: ['draft']`)判定,这里不替它放行任何值。
+      if (!input.status) input.status = 'draft';
       return;
     }
 

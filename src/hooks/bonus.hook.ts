@@ -73,6 +73,10 @@ export const BonusHook: Hook = {
     }
     const points = toNumber(row.points) ?? 0;
     input.signed_points = row.bonus_type === 'deduct' ? -points : points;
+    // 状态默认「待审批」(#37):登记表单不再让人力审核选状态,新登记一律从待审批起步。
+    // 只在**输入未带 status** 时补 —— 带了状态的写入(批准 / 否决按钮、脚本、导入)行为一个字不变,
+    // 合法性仍由对象上的状态机(`initialStates: ['draft']`)与下面的岗位分离判定。
+    if (ctx.event === 'beforeInsert' && !input.status) input.status = 'draft';
 
     const rule = requiredBonusPosition(ctx.event, input, prev);
     if (rule) {

@@ -113,9 +113,6 @@ export const zhCNTranslations: TranslationData = {
       _sections: {
         request: {
           label: "调整申请"
-        },
-        decision: {
-          label: "审批"
         }
       }
     },
