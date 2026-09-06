@@ -65,6 +65,19 @@ export const STATUS_LABEL: Record<SheetStatus, string> = {
   archived: '已归档',
 };
 
+/**
+ * 状态的中文标签 —— 给**留痕写入**用(审核记录的原状态 / 新状态)。
+ *
+ * 审核记录是给人看的审计视图,列表直出字段值,存内部值就等于把 `draft` /
+ * `branch_checking` 摆到用户面前。转换放在写入侧而不是展示侧:留痕对象一次写入、多处
+ * 读取(列表、表单、导出、归档快照 payload),写入侧转一次,四个读取面全都对。
+ * 未知取值原样返回,不吞值。
+ */
+export function statusLabel(status: string | null | undefined): string | null {
+  if (status === null || status === undefined || status === '') return null;
+  return STATUS_LABEL[status as SheetStatus] ?? status;
+}
+
 export function sortSteps(steps: PlanStepDef[]): PlanStepDef[] {
   return [...steps].sort((a, b) => a.seq - b.seq);
 }
