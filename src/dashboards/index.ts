@@ -35,8 +35,14 @@ export const ResultsDashboard: Dashboard = {
     { id: 'm_avg', type: 'metric', title: '平均得分', dataset: 'kpi_result_metrics', values: ['avg_score'], colorVariant: 'success', layout: { x: 3, y: 0, w: 3, h: 2 } },
     { id: 'm_max', type: 'metric', title: '最高得分', dataset: 'kpi_result_metrics', values: ['max_score'], colorVariant: 'warning', layout: { x: 6, y: 0, w: 3, h: 2 } },
     { id: 'm_min', type: 'metric', title: '最低得分', dataset: 'kpi_result_metrics', values: ['min_score'], colorVariant: 'danger', layout: { x: 9, y: 0, w: 3, h: 2 } },
-    { id: 'bar_unit', type: 'bar', title: '各组织单元平均得分', dataset: 'kpi_result_metrics', dimensions: ['unit'], values: ['avg_score'], chartConfig: axis('bar', 'unit', 'avg_score'), layout: { x: 0, y: 2, w: 6, h: 5 } },
-    { id: 'bar_person', type: 'horizontal-bar', title: '人员得分', dataset: 'kpi_result_metrics', dimensions: ['person'], values: ['avg_score'], filter: { dimension: { $in: ['person', 'leader'] } }, filterBindings: { dimension: false }, chartConfig: axis('horizontal-bar', 'person', 'avg_score'), layout: { x: 6, y: 2, w: 6, h: 5 } },
+    // 只算部门与分公司两个维度(#38 第 4 条):到人 / 分管领导的结果行没有组织单元,
+    // 不过滤就会在轴上多出一根把它们全兜进去的「(未指定)」柱。固定过滤 + 关掉与全局
+    // 「汇总维度」筛选器的绑定,写法与下面的「人员得分」一致;范围写进标题,免得看图的人
+    // 以为全局筛选没生效。
+    { id: 'bar_unit', type: 'bar', title: '各组织单元平均得分(部门 / 分公司)', dataset: 'kpi_result_metrics', dimensions: ['unit'], values: ['avg_score'], filter: { dimension: { $in: ['department', 'branch'] } }, filterBindings: { dimension: false }, chartConfig: axis('bar', 'unit', 'avg_score'), layout: { x: 0, y: 2, w: 6, h: 5 } },
+    // 轴用 `person_label`(结果记录的名称,含姓名)而不是 `person`:后者出的是原始用户 id
+    // ——平台的数据集维度解析只认 lookup 字段,不认 user 字段(见 datasets/index.ts 的说明)。
+    { id: 'bar_person', type: 'horizontal-bar', title: '人员得分', dataset: 'kpi_result_metrics', dimensions: ['person_label'], values: ['avg_score'], filter: { dimension: { $in: ['person', 'leader'] } }, filterBindings: { dimension: false }, chartConfig: axis('horizontal-bar', 'person_label', 'avg_score'), layout: { x: 6, y: 2, w: 6, h: 5 } },
     { id: 'tbl_dim', type: 'table', title: '按维度汇总', dataset: 'kpi_result_metrics', dimensions: ['dimension'], values: ['result_count', 'avg_score', 'max_score', 'min_score'], filterBindings: { dimension: false }, layout: { x: 0, y: 7, w: 12, h: 4 } },
   ],
 };

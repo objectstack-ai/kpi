@@ -9,7 +9,22 @@ export const ResultDataset = defineDataset({
     { name: 'dimension', label: '汇总维度', field: 'dimension', type: 'string' },
     { name: 'plan', label: '考核方案', field: 'plan', type: 'lookup' },
     { name: 'unit', label: '组织单元', field: 'unit', type: 'lookup' },
-    { name: 'person', label: '人员', field: 'person', type: 'lookup' },
+    { name: 'person', label: '人员(账号)', field: 'person', type: 'lookup' },
+    /**
+     * 人员的展示维度(#38 第 4 条)。
+     *
+     * `person` 维度在图表与报表里出的是**原始用户 id**,不是姓名。抓包核实过服务端行为
+     * (`POST /api/v1/analytics/dataset/query`):`unit` 维度返回「财务部」「华东分公司」,
+     * 同一次查询里 `person` 维度返回 `7zLYIwpX82If4BvtWGdx2FJeP1S3yyrE`。差别在字段类型 ——
+     * `Field.lookup` 出 `type: 'lookup'`,`Field.user` 出 `type: 'user'`(同样带
+     * `reference: 'sys_user'`),数据集的维度解析只认前者。这是平台侧的能力缺口,按项目
+     * 纪律只上报、不在应用侧绕平台。
+     *
+     * 应用侧能做的是换一个**本身就存着姓名**的列:`kpi_result.name` 在汇总时已写成
+     * 「方案名 · 姓名」。残留偏差是轴标签带方案名前缀,不是纯姓名 —— 平台补上 user 维度
+     * 解析后,这两处应换回 `person`。
+     */
+    { name: 'person_label', label: '人员', field: 'name', type: 'string' },
   ],
   measures: [
     { name: 'result_count', label: '结果数', aggregate: 'count' },
