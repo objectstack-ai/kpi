@@ -1,129 +1,250 @@
-# KPI 考核管理系统(ObjectStack 应用)
+# KPI Assessment Management System
 
-面向多部门、多分公司的 KPI 考核管理,覆盖「指标库 → 方案配置 → 指标下达 → 数据填报 →
-并行核对 → 审核流程 → 实时计分 → 数据调整 → 汇总 → 归档快照」全流程。基于
-[ObjectStack](https://github.com/objectstack-ai/objectstack) 17.x 元数据平台开发,
-按 `os-project-*` 交付流程 skill 设计与实现。
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/ObjectStack-17.x-1D4ED8.svg)](https://github.com/objectstack-ai/objectstack)
+[![Node](https://img.shields.io/badge/node-%3E%3D22-339933.svg)](https://nodejs.org)
 
-## 文档
+A production-shaped KPI assessment system for organizations that score multiple departments and
+branch companies each period. It covers the whole cycle — **indicator library → plan configuration →
+indicator assignment → data entry → parallel verification → review workflow → real-time scoring →
+data adjustment → four-dimension aggregation → immutable archive** — and replaces the spreadsheets
+and chat threads that usually carry that process.
 
-| 文档 | 内容 |
+Built on the [ObjectStack](https://github.com/objectstack-ai/objectstack) 17.x metadata platform.
+Organization, accounts, permissions, audit logging, import/export, list and form UI come from the
+platform; six server-side code points carry what is specific to assessment.
+
+> **Language note.** The application UI and the delivery documents under `docs/` are in Simplified
+> Chinese — this system was built for a Chinese enterprise, and the copy is part of the domain
+> modelling rather than an afterthought. The platform is configured for `zh-CN` and `en`
+> (`objectstack.config.ts`), but the English bundle is currently a **stub fallback**: 32 labels
+> across 7 objects, against 320 labels across 21 objects for `zh-CN`. Switching to English today
+> gives a mixed-language UI, and view, action, page and error copy have no English at all. A full
+> English UI is not yet in scope — see [Internationalization](#internationalization).
+> This README is the English entry point.
+
+![Workbench](docs/手册/图片/01-02-gongzuotai.png)
+
+## Why this exists
+
+Running an assessment cycle on spreadsheets fails in three predictable ways:
+
+- **The scoring rule is not single-valued.** Every department's sheet spells "completion rate"
+  slightly differently, and editing a sheet silently changes scores for periods already closed.
+- **The process leaves no trail.** Who changed which number, when, why, and who approved it ends up
+  scattered across chat logs and mail attachments.
+- **Coordination is manual.** Branch verification, HR review and executive approval are chased by
+  hand, with no single view of what is stuck where.
+
+## Core mechanisms
+
+| Mechanism | What it means in the code |
 |---|---|
-| [docs/需求/KPI考核管理系统-功能性需求文档-V1.3.md](docs/需求/KPI考核管理系统-功能性需求文档-V1.3.md) | 客户提供的原始功能性需求(V1.3,2026-09-02) |
-| [docs/00-设计方案.md](docs/00-设计方案.md) | 设计方案 V1.0(客户 2026-09-02 确认,唯一需求基准);Word 成品在 [docs/交付/](docs/交付/)(V0.9 送审稿、V1.0 客户确认版),由 `pnpm docs:docx` 从本源稿生成 |
-| [docs/01-需求解读报告.md](docs/01-需求解读报告.md) | 场景地图、平台能力覆盖度、风险、疑点(疑点已由设计方案 V1.0 关闭) |
-| [docs/02-总体方案蓝图.md](docs/02-总体方案蓝图.md) | os 能力映射、对象模型总图、模块依赖与开发顺序 |
-| [docs/手册/KPI考核管理系统-操作手册.md](docs/手册/KPI考核管理系统-操作手册.md) | 分角色操作手册 V0.1(送审稿):通用操作 + 五个业务角色分章,含真实系统截图;Word 成品在 [docs/交付/](docs/交付/),由 `pnpm docs:manual` 从本源稿生成 |
-| [docs/汇报/KPI考核管理系统-解决方案汇报.html](docs/汇报/KPI考核管理系统-解决方案汇报.html) | 解决方案汇报稿:业务流程、计分与汇总口径、权限模型九张示意图 + 26 张界面截图。图片走相对路径指向操作手册的截图(不重复入库);发布用的自包含单文件由 `pnpm docs:report` 生成 |
-| [scripts/build-report-deck.mjs](scripts/build-report-deck.mjs) | 从汇报稿同一批素材生成 19 页汇报 PPT(九张示意图 + 八张界面截图,每页带讲稿备注)。示意图需先从汇报稿 HTML 的内联 SVG 按 `figure` 截取导出;脚本头注说明了用法与依赖 |
-| [CLAUDE.md](CLAUDE.md) | 开发约定与 dev-issue 启用清单 |
+| **Single source of truth for scoring** | Four scoring methods (linear / step / range interpolation / CEL formula) are *data*, not code. Every score in the system comes out of one engine, `src/lib/scoring.ts`; re-implementing it in a view or formula field is not allowed. |
+| **Freeze on publish** | Publishing a plan copies target value, weight and scoring rule onto every entry line. Later edits to the indicator library never reach back into a closed period. |
+| **A state machine with gates** | Can't submit with blank actuals, can't advance with an open dispute, rejection requires a reason, everything is read-only after archiving. Rules live in server-side hooks; buttons only write a "pending action". |
+| **Append-only audit trail** | Every submit, verify, review, reject, adjust and archive writes a review record that cannot be edited. Archive snapshots carry a SHA-256 checksum. |
+| **Data scope generated from the plan** | "My department" and "the subjects I oversee" are computed at publish time from participating subjects, executive leaders and staff assignments — onboarding a new org changes data, not metadata. |
 
-## 快速开始
+The trade-off worth stating up front: **free-form spreadsheet formulas and cross-sheet references do
+not enter the system.** Their job is taken over by the indicator scoring rule. That is the price of
+getting a single, reviewable, recomputable definition of every score.
+
+## Quick start
+
+Requires Node >= 22 and pnpm >= 10.15.
 
 ```bash
 pnpm install
-pnpm verify          # validate + typecheck + vitest
-pnpm e2e             # 对运行中的 dev 实例(空库、端口 3100)经 REST 走完整考核链路
-pnpm dev             # http://localhost:3000 ;Console: /_console/ ;管理员 admin@objectos.ai / admin123
+pnpm verify          # validate + typecheck + vitest + i18n sync check
+pnpm dev             # http://localhost:3000 · console at /_console/ · admin@objectos.ai / admin123
+pnpm e2e             # drives a full assessment cycle over REST against a running dev instance
 ```
 
-开发环境自动加载演示种子:组织树(总公司、3 个部门、4 家分公司)、6 个指标(含阶梯区间)、
-1 个草稿方案(4 节点流程、5 个参与主体、18 条指标下达)。用户不能种子,请在 Setup 中创建
-用户、加入组织单元并分配岗位。
+`pnpm validate` checks the metadata. **Metadata errors fail silently at runtime**, so treat a failing
+`validate` as a blocking error, not a warning.
 
-### 演示种子档案(`OS_SEED_PROFILE`)
+The dev environment loads a demo seed automatically: an org tree (headquarters, 3 departments,
+4 branches), 6 indicators including a stepped one, and 1 draft plan (4 workflow steps, 5 participating
+subjects, 18 indicator assignments). **Users cannot be seeded** — create them in Setup, add them to an
+org unit, and assign a position.
 
-| 档案 | 启用方式 | 内容 |
+### Demo seed profiles (`OS_SEED_PROFILE`)
+
+| Profile | How to enable | Contents |
 |---|---|---|
-| 默认(通用企业) | 不设变量 | 上面那套;操作手册的截图依赖它 |
-| 软件公司 | `OS_SEED_PROFILE=software` | 总公司 + 8 个业务部门 + 3 家销售型分公司、24 个指标(四种计分方式全覆盖)、1 个草稿季度方案(11 个参与主体、36 条指标下达) |
+| Default (generic enterprise) | unset | The set above; the operations manual's screenshots depend on it |
+| Software company | `OS_SEED_PROFILE=software` | HQ + 8 business departments + 3 sales branches, 24 indicators covering all four scoring methods, 1 draft quarterly plan (11 subjects, 36 assignments) |
 
-**换档案必须换空库**(两条,缺一不可):
+**Switching profiles requires an empty database** — both steps, neither optional:
 
-1. **删 `dist`** —— 选档结果会被构建产物缓存,不删就还是上一个档案;
-2. **换一个空的数据库文件** —— 两套档案都是 `upsert`,种子加载器只写不删。在**已有库**上换档案,另一套档案的记录原地留着:库里会同时躺着两棵组织树和两个方案;换回默认档案后,`bu_sw_*` 那 12 个单元与季度方案仍会出现在操作手册截图取景的那些页面上。
+1. **Delete `dist`** — the chosen profile is cached in the build output; without this you keep the old one.
+2. **Point at a fresh database file** — both profiles `upsert`, and the seed loader only writes, never
+   deletes. Switching on an *existing* database leaves the other profile's records in place: you end up
+   with two org trees and two plans in one database, and after switching back the software profile's
+   12 units and quarterly plan still show up on exactly the pages the manual's screenshots frame.
 
 ```bash
-# 软件公司档案:空库启动 → 建岗位人员与到人分工 → 走完整流程断言
+# Software profile: empty database → create positions/staff → assert the full flow
 rm -rf dist
-rm -f .objectstack/software.db*                                       # 或换一个没用过的文件名
+rm -f .objectstack/software.db*                 # or pick a filename you have not used
 OS_SEED_PROFILE=software OS_DATABASE_URL=file:./.objectstack/software.db pnpm dev
-node scripts/software-people.mjs            # 18 个岗位账号、到人分工、个人承接项、分管领导(用户不能种子,只能运行期建)
-node scripts/software-flow.mjs [结果.json]  # 发布 → 填报 → 核对 → 审核 → 加减分 → 调整 → 汇总 → 归档 → 数据范围
+node scripts/software-people.mjs                # 18 accounts, staff assignments, personal items, executive leaders
+node scripts/software-flow.mjs [result.json]    # publish → enter → verify → review → bonus → adjust → aggregate → archive → data scope
 
-# 换回默认档案:同样是删 dist + 另指定(或清空)数据库文件
+# Back to the default profile: same two steps
 rm -rf dist
 OS_DATABASE_URL=file:./.objectstack/default.db pnpm dev
 ```
 
-两个脚本都读 `KPI_BASE_URL`(缺省 `http://localhost:${OS_PORT:-3000}`);`software-people.mjs` 可重复执行,
-且必须在方案仍是草稿时运行 —— 到人分工与分管领导随方案发布冻结;`software-flow.mjs` 要求空库(它会先故意把方案改坏来验发布拦截)。
+Both scripts read `KPI_BASE_URL` (default `http://localhost:${OS_PORT:-3000}`).
+`software-people.mjs` is idempotent and **must run while the plan is still a draft** — staff
+assignments and executive leaders freeze when the plan is published. `software-flow.mjs` requires an
+empty database, because it deliberately breaks the plan first to assert that publish is blocked.
 
-`software-people.mjs` 建的 18 个账号里,三家分公司**各有两名**:一名「分公司填报人员」(沈月 /
-黄鹤 / 秦朗,岗位 `kpi_dept_reporter`)、一名「分公司核对人员」(陈东 / 林南 / 高北,岗位
-`kpi_branch_checker`)。分公司在方案里既是被考核主体、又是核对方,而核对人员按《设计方案》
-§3 表 1 只能「确认无误 / 提出争议」、改不了数值 —— 分公司自己那张填报单必须由分公司填报
-人员来填,不是管理员代填(`software-flow.mjs` 的 T11b 就断言这一条)。他们的数据范围与部门
-填报人员同源:方案发布时按参与主体写入的共享规则把本主体的填报单放宽到本单元成员,分公司
-本身就是参与主体,不需要任何额外的元数据。
+Of the 18 accounts it creates, each of the three branches gets **two**: a *branch reporter*
+(position `kpi_dept_reporter`) and a *branch checker* (`kpi_branch_checker`). A branch is both an
+assessed subject and a verifying party, and a checker may only confirm or dispute — never edit a
+value. So a branch's own entry sheet must be filled in by its reporter, not by an administrator
+(`software-flow.mjs` asserts exactly this in T11b). Their data scope has the same origin as a
+department reporter's: at publish time the sharing rules written for each participating subject widen
+that subject's entry sheet to the members of its unit, and a branch *is* a participating subject —
+no extra metadata needed.
 
-> ⚠️ 演示夹具的租户对齐(临时):种子写入的组织单元 `organization_id` 为空,而管理员在
-> Setup 里新建的单元会被引擎盖上当前组织;共享规则的收件方展开对这一列做等值比较,所以
-> 只有种子单元展开不出人。`src/data/align-demo-units.ts` 在 `kernel:bootstrapped` 时把这几个
-> 种子单元(且仅这几个 id —— 两套档案的单元 id 取并集、且仅 `organization_id` 为空的行、且仅
-> dev / test)补成与 Setup 新建单元一致。这是 objectstack-ai/objectstack#14547 的临时夹具修补,平台修复落地后请连同
-> `objectstack.config.ts` 里的调用一起删除。
+> ⚠️ **Temporary demo-tenant fixture.** Seeded org units are written with an empty
+> `organization_id`, while units created by an administrator in Setup get stamped with the current
+> organization; the sharing-rule recipient expansion compares that column for equality, so only
+> seeded units expand to nobody. `src/data/align-demo-units.ts` patches those specific units at
+> `kernel:bootstrapped` — that id set only, only rows with an empty `organization_id`, and only in
+> dev/test. This works around objectstack-ai/objectstack#14547; delete it, along with its call in
+> `objectstack.config.ts`, once the platform fix lands.
 
-## 角色与岗位
+## Roles and positions
 
-| 需求角色 | 岗位(position) | 权限集 | 数据范围 |
+| Role | Position | Permission set | Data scope |
 |---|---|---|---|
-| 系统管理员 | `kpi_admin`(组织 owner/admin 自动等同) | `kpi_admin_set` | 全部 |
-| 人力审核 | `kpi_hr_reviewer` | `kpi_hr_reviewer_set` | 全部 |
-| 人力负责人 | `kpi_hr_head` | `kpi_hr_head_set` | 全部 |
-| 部门填报人员 | `kpi_dept_reporter` | `kpi_dept_reporter_set` | 本部门(private + 动态记录共享) |
-| 分公司核对人员 | `kpi_branch_checker` | `kpi_branch_checker_set` | 本分公司核对任务(private + 动态记录共享) |
-| 分管领导 | `kpi_exec_leader` | `kpi_exec_leader_set` | 所分管主体(private + 动态记录共享) |
+| System administrator | `kpi_admin` (org owner/admin counts automatically) | `kpi_admin_set` | Everything |
+| HR reviewer | `kpi_hr_reviewer` | `kpi_hr_reviewer_set` | Everything |
+| HR head | `kpi_hr_head` | `kpi_hr_head_set` | Everything |
+| Department reporter | `kpi_dept_reporter` | `kpi_dept_reporter_set` | Own department (private + dynamic record sharing) |
+| Branch checker | `kpi_branch_checker` | `kpi_branch_checker_set` | Own branch's check tasks (private + dynamic record sharing) |
+| Executive leader | `kpi_exec_leader` | `kpi_exec_leader_set` | Subjects they oversee (private + dynamic record sharing) |
 
-「本部门 / 本分公司 / 分管范围」不依赖平台企业版 `hierarchy-security` 的 `unit / unit_and_below`
-深度:填报单、核对任务、数据调整、考核结果的 OWD 都是 private,可见性由方案发布时按
-「参与主体」「分管领导」「到人分工」写入的**共享规则数据**(`src/services/sharing-service.ts`)
-放宽。接入新客户组织只改数据,不改元数据。
+"Own department / own branch / subjects I oversee" deliberately does **not** rely on the enterprise
+`hierarchy-security` plugin's `unit` / `unit_and_below` depth. Entry sheets, check tasks, adjustments
+and results all have an OWD of `private`; visibility is widened by **sharing-rule data**
+(`src/services/sharing-service.ts`) written at publish time from participating subjects, executive
+leaders and staff assignments. Onboarding a new customer's org changes data, not metadata.
 
-规则**按方案**建:条件里带方案 id,规则名按方案加前缀,发布时对本方案做一次对账 ——
-换掉分管领导、撤掉参与主体、撤掉到人分工,旧授权当场失效,而历史方案的授权原样保留。
-方案**已关闭 / 已归档**后转为「留读、去写」:填报单、核对任务、数据调整由可编辑降为只读
-(还要查得到历史,但不该再改),考核结果本就只读。
+Rules are created **per plan**: the condition carries the plan id and the rule name is prefixed with
+the plan, so publishing reconciles that plan's rules in one pass — replace an executive leader, drop
+a participating subject or remove a staff assignment and the old grant lapses immediately, while
+grants from historical plans stay untouched. Once a plan is **closed or archived** the rules shift to
+"keep read, drop write": entry sheets, check tasks and adjustments go from editable to read-only
+(history must stay queryable, but must not change); results were read-only already.
 
-## 业务流程(默认 4 节点,可按方案配置)
+## Business process
 
-```
-方案草稿 ─发布(完整性检查)─▶ 生成填报单/明细(冻结目标、权重、计分规则副本)
-填报中 ─提交─▶ 分公司核对中(并行核对任务,全部确认自动推进)─▶ 人力审核中 ─▶ 领导审批中 ─▶ 已通过 ─归档─▶ 已归档(不可变快照)
-任一审核节点 ─驳回(原因必填)─▶ 上一节点
-```
-
-- 计分引擎:`src/lib/scoring.ts`(线性 / 阶梯 / 区间插值 / CEL 公式),填报保存即算分,计算说明落库可复核;
-- 审核状态机:`src/lib/workflow.ts` + `src/hooks/sheet.hook.ts`,按钮只写「待执行动作」,规则全在 hook;
-- 汇总:`src/lib/aggregate.ts`,通过 / 归档 / 调整落地时重算部门、分公司、到人、分管领导四维结果;
-- 留痕:`kpi_review_record` 只增不改 + 平台审计日志;归档快照 `kpi_snapshot` 带 SHA-256 校验和;
-- 口径基准:计分、汇总、流程、加减分、调整的口径以 docs/00 第 7~10 章为准;到人 = Σ(部门板块得分 × 分工权重 × 个人系数)+ Σ(承接项得分率 × 承接权重)。
-
-## 目录
+Four workflow steps by default; the steps are configurable per plan.
 
 ```
-objectstack.config.ts   应用装配(对象、视图、按钮、hook、权限、共享规则、看板、报表、种子)
-src/objects             17 个业务对象
-src/hooks               计分、流程、发布、争议、加减分、调整、不可变保护
-src/lib                 纯函数:计分 / 状态机 / 汇总 / CEL 求值(有单元测试)
-src/services            计分装配、结果汇总、快照生成
-src/security            岗位、权限集、共享规则、岗位绑定
+Plan draft ─publish (integrity check)─▶ entry sheets + lines (frozen copy of target, weight, scoring rule)
+Entering ─submit─▶ Branch verification (parallel check tasks, advances when all confirm)
+        ─▶ HR review ─▶ Executive approval ─▶ Passed ─archive─▶ Archived (immutable snapshot)
+Any review step ─reject (reason required)─▶ previous step
+```
+
+- **Scoring engine** — `src/lib/scoring.ts` (linear / step / range interpolation / CEL formula).
+  Saving an actual value scores it immediately and persists a human-readable calculation trace.
+- **Review state machine** — `src/lib/workflow.ts` + `src/hooks/sheet.hook.ts`. Buttons only write a
+  pending action; every rule lives in the hook.
+- **Aggregation** — `src/lib/aggregate.ts` recomputes the department, branch, per-person and executive
+  dimensions whenever a sheet passes, is archived, or an adjustment lands.
+- **Audit trail** — `kpi_review_record` is append-only, on top of the platform audit log; archive
+  snapshots (`kpi_snapshot`) carry a SHA-256 checksum.
+- **Definitions of record** — scoring, aggregation, workflow, bonus and adjustment semantics follow
+  chapters 7–10 of `docs/00-设计方案.md`. Per-person score =
+  Σ(segment score × assignment weight × personal coefficient) + Σ(personal item score rate × item weight).
+
+Publishing runs an **8-point integrity check**: workflow steps valid, at least one participating
+subject, every subject has assignments, weights total 100% per subject, no missing target values,
+every subject has an executive leader (when the plan has an approval step), no assignment to a
+non-participating subject, and no open disputes. It is all-or-nothing — a failing check leaves the
+plan a draft and lists every problem.
+
+## Project layout
+
+```
+objectstack.config.ts   App assembly: objects, views, actions, hooks, permissions,
+                        sharing rules, dashboards, reports, seed data
+src/objects             17 business objects
+src/hooks               Scoring, workflow, publish, disputes, bonus, adjustment, immutability
+src/lib                 Pure functions: scoring / state machine / aggregation / CEL (unit-tested)
+src/services            Scoring assembly, result aggregation, snapshot generation, sharing rules
+src/security            Positions, permission sets, sharing rules, position binding
 src/views | actions | apps | pages | datasets | dashboards | reports | translations | data
-test                    vitest 单元测试
-scripts/e2e-flow.mjs    端到端流程验证(REST)
-docs                    设计与验收文档
+test                    Vitest unit tests (139 cases)
+scripts/e2e-flow.mjs    End-to-end flow verification over REST
+docs                    Design, manual and briefing documents (Simplified Chinese)
 ```
 
-## 许可
+## Conventions
 
-Apache-2.0
+Full detail in [CLAUDE.md](CLAUDE.md). The load-bearing ones:
+
+- Object machine names are prefixed `kpi_`; fields are `snake_case`, config keys are `camelCase`.
+- Number fields must declare all four of scale, minimum, maximum and unit — platform defaults are banned.
+- The scoring definition lives only in `src/lib/scoring.ts`; the review state machine only in
+  `src/hooks/sheet.hook.ts`. No second implementation in views or formula fields.
+- Archive snapshots and passed entry sheets are read-only; do not write around the hooks.
+- Do not modify platform packages under `node_modules`. Platform limitations are **reported only**
+  as issues on objectstack-ai/objectstack (symptom, minimal repro, expected capability, version) —
+  no fix PRs there. Application-side workarounds must be environment-gated and annotated with the
+  platform issue they track, and deleted once it is fixed.
+- User-facing copy is Simplified Chinese. The `zh-CN` bundle is generated from metadata labels by
+  `pnpm i18n:extract`; never hand-edit its entries. The `en` bundle is hand-maintained.
+
+## Internationalization
+
+`objectstack.config.ts` declares `defaultLocale: 'zh-CN'`, `supportedLocales: ['zh-CN', 'en']` and
+`fallbackLocale: 'zh-CN'`, so the English path works — but it is far from complete:
+
+| Bundle | Objects | Labels | Maintenance |
+|---|---|---|---|
+| `zh-CN` | 21 | 320 | Generated by `pnpm i18n:extract` from metadata labels; entries must not be hand-edited |
+| `en` | 7 | 32 | Hand-maintained |
+
+Anything the `en` bundle misses falls back to Chinese, so an English session today is mixed-language.
+Beyond object and field labels, **view tabs, action labels, workbench page copy, dashboards, reports
+and the three-part error messages raised in hooks have no English translation** — metadata labels are
+authored in Chinese (`Field.number({ label: '实际值', … })`), and English exists only where the bundle
+covers it.
+
+Bringing the English UI up to parity is a self-contained piece of work — regenerate the `en` skeleton
+with `os i18n extract --locales=en`, translate the entries, then extend to views, pages and hook
+messages. Contributions welcome; please raise an issue first so the scope can be agreed.
+
+## Documentation
+
+All documents are in Simplified Chinese.
+
+| Document | Contents |
+|---|---|
+| [docs/需求/KPI考核管理系统-功能性需求文档-V1.3.md](docs/需求/KPI考核管理系统-功能性需求文档-V1.3.md) | Original functional requirements from the customer (V1.3) |
+| [docs/00-设计方案.md](docs/00-设计方案.md) | Design specification — V1.0 is the customer-confirmed baseline and the single source of requirements. Word builds in [docs/交付/](docs/交付/), generated from this source by `pnpm docs:docx` |
+| [docs/01-需求解读报告.md](docs/01-需求解读报告.md) | Scenario map, platform capability coverage, risks, open questions (closed by design spec V1.0) |
+| [docs/02-总体方案蓝图.md](docs/02-总体方案蓝图.md) | Platform capability mapping, object model, module dependencies and build order |
+| [docs/手册/KPI考核管理系统-操作手册.md](docs/手册/KPI考核管理系统-操作手册.md) | Operations manual, one chapter per business role, with real UI screenshots. Word build via `pnpm docs:manual` |
+| [docs/汇报/KPI考核管理系统-解决方案汇报.html](docs/汇报/KPI考核管理系统-解决方案汇报.html) | Solution briefing: nine diagrams covering the process, scoring, aggregation and permission model, plus 26 UI screenshots. Self-contained single file via `pnpm docs:report` |
+| [scripts/build-report-deck.mjs](scripts/build-report-deck.mjs) | Generates a 19-slide briefing deck from the same material, with speaker notes. See the script header for usage and dependencies |
+| [CLAUDE.md](CLAUDE.md) | Development conventions and delivery-process checklist |
+
+## Contributing
+
+Issues and pull requests are welcome. Before opening a PR, run `pnpm verify` — it must pass; a failing
+`pnpm validate` in particular means broken metadata, which fails silently at runtime rather than
+loudly at startup.
+
+## License
+
+[Apache-2.0](LICENSE)
