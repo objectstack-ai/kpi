@@ -23,7 +23,8 @@
     "verify": "pnpm validate && pnpm typecheck && pnpm test && pnpm i18n:extract:check",
     "e2e": "node scripts/e2e-flow.mjs",
     "docs:docx": "node scripts/md2docx.cjs docs/00-设计方案.md docs/交付/KPI考核管理系统-设计方案-V1.0.docx",
-    "docs:manual": "node scripts/md2docx.cjs docs/手册/KPI考核管理系统-操作手册.md docs/交付/KPI考核管理系统-操作手册-V0.1.docx"
+    "docs:manual": "node scripts/md2docx.cjs docs/手册/KPI考核管理系统-操作手册.md docs/交付/KPI考核管理系统-操作手册-V0.1.docx",
+    "docs:report": "node scripts/inline-assets.cjs docs/汇报/KPI考核管理系统-解决方案汇报.html docs/交付/KPI考核管理系统-解决方案汇报.html"
   },
   "dependencies": {
     "@objectstack/connector-mcp": "^17.2.0",
