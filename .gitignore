@@ -8,3 +8,6 @@ dist
 
 # 截图与证据不进代码树:挂在工作项评论或孤儿分支 acceptance-evidence
 docs/evidence/
+
+# 汇报稿的自包含副本由 pnpm docs:report 生成(内联图片后 6MB+),可从源稿重建,不入库
+docs/交付/KPI考核管理系统-解决方案汇报.html

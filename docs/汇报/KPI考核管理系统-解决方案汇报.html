@@ -1,0 +1,1536 @@
+<title>KPI 考核管理系统解决方案</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Serif+SC:wght@500;700&display=swap">
+<style>
+:root{
+  --paper:#F1F4F8;
+  --surface:#FFFFFF;
+  --surface-2:#F7F9FC;
+  --ink:#151A21;
+  --ink-2:#54606F;
+  --ink-3:#7F8B9A;
+  --rule:#DBE2EB;
+  --rule-strong:#BCC6D3;
+  --accent:#1D4ED8;
+  --accent-2:#12379E;
+  --accent-soft:#E5EBFA;
+  --ok:#0E7A57;      --ok-soft:#DDEFE8;
+  --warn:#96590C;    --warn-soft:#F6EAD8;
+  --stop:#A81F27;    --stop-soft:#F8E2E3;
+  --c1:#2563EB; --c2:#0E8A6E; --c3:#B26A0B;
+  --shadow:0 1px 2px rgba(21,26,33,.05), 0 8px 24px -16px rgba(21,26,33,.28);
+  --font-display:'Noto Serif SC','Songti SC','Source Han Serif SC','SimSun',serif;
+  --font-body:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC',sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#0C1015; --surface:#141920; --surface-2:#1A212A;
+    --ink:#E3E8EF; --ink-2:#9AA5B4; --ink-3:#727D8C;
+    --rule:#272F3A; --rule-strong:#39434F;
+    --accent:#7BA4FF; --accent-2:#A8C3FF; --accent-soft:#172340;
+    --ok:#4FBE91; --ok-soft:#11271E;
+    --warn:#DBA152; --warn-soft:#281F12;
+    --stop:#EC7B84; --stop-soft:#2C1517;
+    --c1:#7BA4FF; --c2:#43C4A0; --c3:#E0A757;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -18px rgba(0,0,0,.9);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0C1015; --surface:#141920; --surface-2:#1A212A;
+  --ink:#E3E8EF; --ink-2:#9AA5B4; --ink-3:#727D8C;
+  --rule:#272F3A; --rule-strong:#39434F;
+  --accent:#7BA4FF; --accent-2:#A8C3FF; --accent-soft:#172340;
+  --ok:#4FBE91; --ok-soft:#11271E;
+  --warn:#DBA152; --warn-soft:#281F12;
+  --stop:#EC7B84; --stop-soft:#2C1517;
+  --c1:#7BA4FF; --c2:#43C4A0; --c3:#E0A757;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -18px rgba(0,0,0,.9);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:var(--font-body); font-size:15px; line-height:1.75;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--accent); text-underline-offset:3px; text-decoration-thickness:1px}
+a:focus-visible,button:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:2px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+
+/* ── shell ───────────────────────────────────────────────── */
+.shell{max-width:1420px; margin:0 auto; padding:0 24px 96px}
+.doc{display:block}
+@media (min-width:1120px){
+  .doc{display:grid; grid-template-columns:188px minmax(0,1fr); gap:44px; align-items:start}
+}
+.rail{display:none}
+@media (min-width:1120px){
+  .rail{display:block; position:sticky; top:28px; padding-top:12px}
+}
+.rail-h{font-size:10.5px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--ink-3); font-weight:600; margin:0 0 12px}
+.rail ol{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:1px}
+.rail a{display:grid; grid-template-columns:22px 1fr; gap:4px; padding:5px 8px; border-radius:4px;
+  color:var(--ink-2); text-decoration:none; font-size:12.5px; line-height:1.45}
+.rail a:hover{background:var(--accent-soft); color:var(--accent-2)}
+.rail a i{font-style:normal; font-family:var(--font-mono); font-size:11px; color:var(--ink-3)}
+
+/* ── masthead ────────────────────────────────────────────── */
+.mast{padding:64px 0 0; border-bottom:1px solid var(--rule); margin-bottom:56px}
+.eyebrow{font-size:11px; letter-spacing:.2em; text-transform:uppercase;
+  color:var(--accent); font-weight:600; margin:0 0 20px}
+h1{font-family:var(--font-display); font-weight:700; font-size:clamp(34px,5.2vw,52px);
+  line-height:1.2; letter-spacing:-.01em; margin:0 0 18px; text-wrap:balance}
+.dek{font-size:17px; line-height:1.7; color:var(--ink-2); max-width:40em; margin:0 0 32px}
+.dek strong{color:var(--ink); font-weight:500}
+.meta{display:flex; flex-wrap:wrap; gap:0 36px; padding:0 0 26px; margin:0;
+  font-size:12.5px; color:var(--ink-2)}
+.meta div{display:flex; flex-direction:column; gap:1px; padding:10px 0}
+.meta dt{font-size:10.5px; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3); font-weight:600}
+.meta dd{margin:0; color:var(--ink)}
+
+/* ── figures strip ───────────────────────────────────────── */
+.stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(128px,1fr));
+  gap:1px; background:var(--rule); border:1px solid var(--rule);
+  border-radius:6px; overflow:hidden; margin:0 0 8px}
+.stats div{background:var(--surface); padding:16px 18px 18px}
+.stats b{display:block; font-family:var(--font-mono); font-weight:500;
+  font-size:26px; line-height:1.1; letter-spacing:-.02em; color:var(--accent); font-variant-numeric:tabular-nums}
+.stats b span{font-size:13px; color:var(--ink-2); margin-left:2px}
+.stats em{display:block; font-style:normal; font-size:12px; color:var(--ink-2); margin-top:6px}
+
+/* ── sections & prose ────────────────────────────────────── */
+section{padding-top:8px; margin-bottom:64px; scroll-margin-top:24px}
+.col{max-width:44em}
+h2{font-family:var(--font-display); font-weight:700; font-size:26px; line-height:1.35;
+  margin:0 0 6px; letter-spacing:-.005em; text-wrap:balance;
+  display:grid; grid-template-columns:auto 1fr; gap:14px; align-items:baseline}
+h2 i{font-style:normal; font-family:var(--font-mono); font-weight:400; font-size:15px;
+  color:var(--accent); letter-spacing:0}
+.lede{font-size:15.5px; color:var(--ink-2); margin:0 0 28px; max-width:44em;
+  padding-bottom:22px; border-bottom:1px solid var(--rule)}
+h3{font-size:15px; font-weight:600; margin:36px 0 10px; letter-spacing:.005em}
+h3::before{content:''; display:inline-block; width:3px; height:13px; border-radius:1px;
+  background:var(--accent); margin-right:9px; vertical-align:-1px}
+p{margin:0 0 16px; max-width:44em}
+strong{font-weight:600}
+code,.mono{font-family:var(--font-mono); font-size:.88em; background:var(--surface-2);
+  border:1px solid var(--rule); border-radius:3px; padding:1px 5px; color:var(--ink-2)}
+ul,ol{margin:0 0 18px; padding-left:1.3em; max-width:44em}
+li{margin-bottom:7px}
+li::marker{color:var(--ink-3)}
+.note{border-left:2px solid var(--rule-strong); padding:2px 0 2px 18px; margin:0 0 20px;
+  color:var(--ink-2); font-size:14px; max-width:42em}
+.note b{color:var(--ink)}
+
+/* ── tables ──────────────────────────────────────────────── */
+.tw{overflow-x:auto; margin:0 0 10px; border:1px solid var(--rule);
+  border-radius:6px; background:var(--surface)}
+table{border-collapse:collapse; width:100%; font-size:13.5px; min-width:520px}
+th,td{text-align:left; padding:10px 14px; border-bottom:1px solid var(--rule); vertical-align:top}
+thead th{background:var(--surface-2); font-weight:600; font-size:11.5px; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--ink-2); white-space:nowrap; position:sticky; top:0}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:last-child.sum td{background:var(--accent-soft); font-weight:600; color:var(--ink)}
+td.num,th.num{text-align:right; font-family:var(--font-mono); font-variant-numeric:tabular-nums; white-space:nowrap}
+caption{caption-side:bottom; text-align:left; font-size:12.5px; color:var(--ink-2);
+  padding:10px 14px 12px; border-top:1px solid var(--rule)}
+caption b{color:var(--ink); font-weight:600}
+
+/* ── pills ───────────────────────────────────────────────── */
+.pill{display:inline-block; font-size:11.5px; font-weight:600; line-height:1.6;
+  padding:1px 8px; border-radius:3px; white-space:nowrap}
+.pill.ok{background:var(--ok-soft); color:var(--ok)}
+.pill.warn{background:var(--warn-soft); color:var(--warn)}
+.pill.stop{background:var(--stop-soft); color:var(--stop)}
+.pill.acc{background:var(--accent-soft); color:var(--accent-2)}
+
+/* ── figures ─────────────────────────────────────────────── */
+figure{margin:26px 0 30px}
+figure.wide{max-width:none}
+.canvas{background:var(--surface); border:1px solid var(--rule); border-radius:6px;
+  padding:22px 20px 18px; overflow-x:auto}
+.canvas svg{display:block; width:100%; min-width:720px; height:auto; color:var(--ink)}
+figure.wide .canvas svg{min-width:880px}
+figcaption{font-size:12.5px; color:var(--ink-2); margin-top:11px; line-height:1.65; max-width:52em}
+figcaption b{color:var(--ink); font-weight:600; font-family:var(--font-mono);
+  font-size:11.5px; letter-spacing:.02em; margin-right:6px}
+
+/* svg helpers */
+.sv-box{fill:var(--surface-2); stroke:var(--rule-strong); stroke-width:1}
+.sv-box-a{fill:var(--accent-soft); stroke:var(--accent); stroke-width:1}
+.sv-box-sys{fill:none; stroke:var(--rule-strong); stroke-width:1; stroke-dasharray:3 3}
+.sv-t{fill:var(--ink); font-family:var(--font-body); font-size:12.5px}
+.sv-tb{fill:var(--ink); font-family:var(--font-body); font-size:12.5px; font-weight:600}
+.sv-s{fill:var(--ink-2); font-family:var(--font-body); font-size:11px}
+.sv-m{fill:var(--ink-2); font-family:var(--font-mono); font-size:10.5px}
+.sv-lane{fill:var(--ink-2); font-family:var(--font-body); font-size:11.5px; font-weight:600}
+.sv-line{stroke:var(--ink-2); stroke-width:1.25; fill:none}
+.sv-line-a{stroke:var(--accent); stroke-width:1.5; fill:none}
+.sv-dash{stroke:var(--ink-3); stroke-width:1.1; fill:none; stroke-dasharray:4 3}
+.sv-stop{stroke:var(--stop); stroke-width:1.3; fill:none; stroke-dasharray:5 3}
+.sv-rule{stroke:var(--rule); stroke-width:1}
+.sv-gate{fill:var(--warn-soft); stroke:var(--warn); stroke-width:1}
+.sv-lock{fill:var(--ok-soft); stroke:var(--ok); stroke-width:1}
+.sv-arrow{fill:var(--ink-2)}
+.sv-arrow-a{fill:var(--accent)}
+.sv-arrow-s{fill:var(--stop)}
+.sv-arrow-w{fill:var(--warn)}
+.sv-arrow-3{fill:var(--ink-3)}
+/* 令预设属性里的 var() 一定解析:presentation attribute 走 CSS 声明,这里补一条同名规则兜底 */
+svg [fill="var(--accent)"]{fill:var(--accent)}
+svg [fill="var(--accent-soft)"]{fill:var(--accent-soft)}
+svg [fill="var(--stop)"]{fill:var(--stop)}
+svg [fill="var(--ok)"]{fill:var(--ok)}
+svg [fill="var(--warn)"]{fill:var(--warn)}
+svg [fill="var(--surface)"]{fill:var(--surface)}
+svg [fill="var(--surface-2)"]{fill:var(--surface-2)}
+svg [stroke="var(--accent)"]{stroke:var(--accent)}
+svg [stroke="var(--warn)"]{stroke:var(--warn)}
+svg [stroke="var(--ink)"]{stroke:var(--ink)}
+svg [stroke="var(--ink-3)"]{stroke:var(--ink-3)}
+svg [stroke="var(--rule-strong)"]{stroke:var(--rule-strong)}
+svg [stroke="var(--c1)"]{stroke:var(--c1)}
+svg [stroke="var(--c2)"]{stroke:var(--c2)}
+svg [stroke="var(--c3)"]{stroke:var(--c3)}
+svg [font-family="var(--font-mono)"]{font-family:var(--font-mono)}
+
+/* ── screenshots ─────────────────────────────────────────── */
+.shot{border:1px solid var(--rule-strong); border-radius:5px; overflow:hidden;
+  background:var(--surface); box-shadow:var(--shadow)}
+.shot img{display:block; width:100%; height:auto}
+.shots{display:grid; gap:26px; margin:26px 0 30px}
+@media (min-width:840px){.shots.two{grid-template-columns:1fr 1fr}}
+.shots figure{margin:0}
+.shots figcaption{font-size:12px}
+
+/* ── callout ─────────────────────────────────────────────── */
+.call{background:var(--surface); border:1px solid var(--rule); border-left:3px solid var(--accent);
+  border-radius:5px; padding:18px 20px; margin:24px 0 26px; max-width:46em}
+.call h4{margin:0 0 8px; font-size:13px; font-weight:600; letter-spacing:.01em}
+.call p:last-child{margin-bottom:0}
+.call.risk{border-left-color:var(--warn)}
+
+/* ── grid of definitions ─────────────────────────────────── */
+.defs{display:grid; gap:1px; background:var(--rule); border:1px solid var(--rule);
+  border-radius:6px; overflow:hidden; margin:0 0 26px}
+@media (min-width:760px){.defs{grid-template-columns:1fr 1fr}}
+.defs div{background:var(--surface); padding:15px 18px 17px}
+.defs h4{margin:0 0 5px; font-size:13.5px; font-weight:600}
+.defs p{margin:0; font-size:13px; color:var(--ink-2); line-height:1.65}
+
+footer{border-top:1px solid var(--rule); padding-top:26px; margin-top:20px;
+  font-size:12.5px; color:var(--ink-3); max-width:44em}
+footer p{margin:0 0 8px}
+</style>
+
+<div class="shell">
+<div class="doc">
+
+<nav class="rail" aria-label="章节导航">
+  <p class="rail-h">目录</p>
+  <ol>
+    <li><a href="#s1"><i>1</i><span>方案摘要</span></a></li>
+    <li><a href="#s2"><i>2</i><span>角色与职责</span></a></li>
+    <li><a href="#s3"><i>3</i><span>端到端业务流程</span></a></li>
+    <li><a href="#s4"><i>4</i><span>方案配置与发布</span></a></li>
+    <li><a href="#s5"><i>5</i><span>填报与实时计分</span></a></li>
+    <li><a href="#s6"><i>6</i><span>核对与审核</span></a></li>
+    <li><a href="#s7"><i>7</i><span>加减分与数据调整</span></a></li>
+    <li><a href="#s8"><i>8</i><span>汇总与结果应用</span></a></li>
+    <li><a href="#s9"><i>9</i><span>归档与审计</span></a></li>
+    <li><a href="#s10"><i>10</i><span>权限与数据范围</span></a></li>
+    <li><a href="#s11"><i>11</i><span>系统架构</span></a></li>
+    <li><a href="#s12"><i>12</i><span>交付状态与计划</span></a></li>
+  </ol>
+</nav>
+
+<main>
+
+<header class="mast">
+  <p class="eyebrow">解决方案汇报</p>
+  <h1>KPI 考核管理系统</h1>
+  <p class="dek">把总公司各业务部门与分公司的考核,从 Excel 与聊天工具的来回传递,搬成一条<strong>口径唯一、全程留痕、发布即冻结</strong>的线上流程:指标库 → 方案配置 → 指标下达 → 数据填报 → 并行核对 → 审核审批 → 实时计分 → 数据调整 → 四维汇总 → 归档快照。</p>
+  <dl class="meta">
+    <div><dt>需求基准</dt><dd>《设计方案》V1.0(客户 2026-09-02 确认)</dd></div>
+    <div><dt>技术底座</dt><dd>ObjectStack 17.x 元数据平台</dd></div>
+    <div><dt>当前阶段</dt><dd>可运行系统 · 全流程已跑通 · PM 验收中</dd></div>
+    <div><dt>汇报日期</dt><dd>2026-09-07</dd></div>
+  </dl>
+  <div class="stats">
+    <div><b>17</b><em>业务对象</em></div>
+    <div><b>6</b><em>岗位与权限集</em></div>
+    <div><b>4</b><em>计分方式</em></div>
+    <div><b>4</b><em>汇总维度</em></div>
+    <div><b>8</b><em>发布前检查项</em></div>
+    <div><b>139</b><em>单元测试用例</em></div>
+  </div>
+</header>
+
+<section id="s1">
+  <div class="col">
+    <h2><i>01</i>方案摘要</h2>
+    <p class="lede">一页纸看懂:这套系统解决什么、靠什么机制解决、现在到哪一步了。</p>
+
+    <h3>现状的三个痛点</h3>
+    <p>考核本身不复杂,难的是<strong>口径</strong>与<strong>留痕</strong>。用 Excel 做考核,三件事必然失控:</p>
+    <ul>
+      <li><strong>口径不唯一</strong>——同一个「完成率」,各部门表里的公式写法不同;表一改,历史周期的分数跟着变,过去算过的账对不上。</li>
+      <li><strong>过程不可追</strong>——谁在什么时候改了哪个数、为什么改、谁批准的,散落在聊天记录和邮件附件里,复核时拼不回来。</li>
+      <li><strong>并行协作靠人盯</strong>——分公司核对、人力审核、领导审批的先后顺序靠人催,谁卡在哪一步没有统一视图。</li>
+    </ul>
+
+    <h3>系统给出的五个机制</h3>
+    <div class="defs">
+      <div><h4>计分口径唯一真值</h4><p>四种计分方式(线性 / 阶梯 / 区间插值 / 自定义公式)是<em>数据</em>不是代码。全系统任何一个得分都出自同一个计分引擎 <code>src/lib/scoring.ts</code>,视图和公式字段里不允许二次实现。</p></div>
+      <div><h4>发布即冻结</h4><p>方案一发布,目标值、权重、计分规则以<em>副本</em>形式落到每一行填报明细上。之后改指标库,历史周期分毫不动。</p></div>
+      <div><h4>状态机带闸门</h4><p>流转不靠人自觉。未填全不能提交、有争议不能推进、驳回必须写原因、归档后全表只读——规则全在服务端 hook,按钮只写「待执行动作」。</p></div>
+      <div><h4>只增不改的留痕</h4><p>每一次提交、核对、审核、驳回、调整、归档都写一条审核记录,只增不改;归档快照带 SHA-256 校验和,不可修改删除。</p></div>
+      <div><h4>数据范围随方案生成</h4><p>「本部门 / 本分公司 / 分管范围」由方案发布时按参与主体、分管领导、到人分工自动写入共享规则。组织调整或换分管领导,只改数据,不改元数据。</p></div>
+      <div><h4>保留 Excel 的手感</h4><p>填报是一屏网格、按行填数、保存即出分;列表支持 Excel 导出与批量导入。变的只有一件事:自由公式与跨表引用不进系统,由指标计分规则统一承担。</p></div>
+    </div>
+
+    <h3>当前状态</h3>
+    <p>系统已按方案搭出并跑通全流程:发布生成填报单、线性 / 区间 / 阶梯计分结果与设计方案第 7 章示例逐位一致、提交冻结、并行核对、争议阻断、驳回原因必填、退回上一节点、通过后四维汇总、加减分与调整落地重算、归档快照不可改删,以及三类业务账号的数据范围隔离,均已验证。第 11 章的产品化补充设计(第 18~35 项)待客户确认档次后排期,详见第 12 节。</p>
+  </div>
+</section>
+
+<section id="s2">
+  <div class="col">
+    <h2><i>02</i>角色与职责</h2>
+    <p class="lede">六个岗位,六套权限集。谁能看到什么由数据范围决定,谁能按哪个按钮由当前流程节点决定——两条边界都在服务端。</p>
+  </div>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>角色</th><th>在系统里做什么</th><th>能看到的范围</th><th>岗位机器名</th></tr></thead>
+      <tbody>
+        <tr><td>系统管理员</td><td>维护组织、用户、岗位</td><td>全部</td><td class="mono">kpi_admin</td></tr>
+        <tr><td>人力审核</td><td>维护指标库与考核方案、指标下达、发布方案、人力节点审核、登记加减分、审批数据调整、归档、审计查询</td><td>全部</td><td class="mono">kpi_hr_reviewer</td></tr>
+        <tr><td>人力负责人</td><td>审批加减分、审批数据调整</td><td>全部</td><td class="mono">kpi_hr_head</td></tr>
+        <tr><td>部门填报人员</td><td>填报本部门数据并提交、发起数据调整申请</td><td>本部门</td><td class="mono">kpi_dept_reporter</td></tr>
+        <tr><td>分公司核对人员</td><td>核对与本分公司相关的数据,只能「确认无误」或「提出争议」,<b>不能改数值</b></td><td>本分公司</td><td class="mono">kpi_branch_checker</td></tr>
+        <tr><td>分管领导</td><td>分管主体的最终审批、查看分管范围的结果与看板</td><td>分管范围</td><td class="mono">kpi_exec_leader</td></tr>
+      </tbody>
+      <caption><b>表 1</b>角色、职责与数据范围。分公司在方案里既是被考核主体、又是核对方——这两件事由两个人做:分公司填报人员填本分公司那张单,分公司核对人员只对别人的数据表态。</caption>
+    </table>
+  </div>
+
+  <div class="col">
+    <div class="call">
+      <h4>一条容易被忽略的设计约束</h4>
+      <p>核对人员<strong>不能改数值</strong>。发现数据对不上,只能提出争议,由填报部门经调整流程更正。这是客户 2026-09-02 在第 13 项上选定的口径(选项 A),目的是让「谁报的数谁负责」这条责任线不被核对环节冲淡。</p>
+    </div>
+  </div>
+</section>
+
+<section id="s3">
+  <div class="col">
+    <h2><i>03</i>端到端业务流程</h2>
+    <p class="lede">一个考核周期是一条从左到右的单行道:人力配方案 → 部门填数 → 分公司并行核对 → 人力审核 → 领导审批 → 归档。三张图分别回答:谁在做什么、系统自动做了什么、什么情况下走不动。</p>
+  </div>
+
+  <figure class="wide">
+    <div class="canvas">
+      <svg viewBox="0 0 1252 512" role="img" aria-label="考核流程泳道图:人力审核配置并发布方案,部门填报人员填数并提交,分公司核对人员并行核对,人力审核与分管领导逐级审批,最后由人力审核归档;系统在发布、保存、提交、审批通过、归档五处自动执行检查、计分、生成核对任务、生成四维结果与快照。">
+        <defs>
+          <marker id="f1-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" class="sv-arrow"/>
+          </marker>
+          <marker id="f1-ard" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" class="sv-arrow-3"/>
+          </marker>
+        </defs>
+
+        <!-- 系统泳道底色 -->
+        <rect x="0" y="412" width="1252" height="92" fill="var(--surface-2)"/>
+
+        <!-- 阶段头 -->
+        <text class="sv-s" x="284" y="20" text-anchor="middle" letter-spacing="1">① 配置与发布</text>
+        <text class="sv-s" x="560" y="20" text-anchor="middle" letter-spacing="1">② 填报</text>
+        <text class="sv-s" x="905" y="20" text-anchor="middle" letter-spacing="1">③ 并行核对与逐级审核</text>
+        <text class="sv-s" x="1181" y="20" text-anchor="middle" letter-spacing="1">④ 归档</text>
+        <line class="sv-rule" x1="156" y1="30" x2="412" y2="30"/>
+        <line class="sv-rule" x1="432" y1="30" x2="688" y2="30"/>
+        <line class="sv-rule" x1="708" y1="30" x2="1102" y2="30"/>
+        <line class="sv-rule" x1="1122" y1="30" x2="1240" y2="30"/>
+
+        <!-- 泳道分隔 -->
+        <line class="sv-rule" x1="0" y1="44" x2="1252" y2="44"/>
+        <line class="sv-rule" x1="0" y1="136" x2="1252" y2="136"/>
+        <line class="sv-rule" x1="0" y1="228" x2="1252" y2="228"/>
+        <line class="sv-rule" x1="0" y1="320" x2="1252" y2="320"/>
+        <line class="sv-rule" x1="0" y1="412" x2="1252" y2="412"/>
+        <line class="sv-rule" x1="0" y1="504" x2="1252" y2="504"/>
+        <line class="sv-rule" x1="152" y1="44" x2="152" y2="504"/>
+
+        <!-- 泳道名 -->
+        <text class="sv-lane" x="140" y="94"  text-anchor="end">人力审核</text>
+        <text class="sv-lane" x="140" y="186" text-anchor="end">部门填报人员</text>
+        <text class="sv-lane" x="140" y="278" text-anchor="end">分公司核对人员</text>
+        <text class="sv-lane" x="140" y="370" text-anchor="end">分管领导</text>
+        <text class="sv-lane" x="140" y="456" text-anchor="end">系统 · 自动</text>
+
+        <!-- 人力审核 -->
+        <rect class="sv-box" x="156" y="61" width="118" height="58" rx="4"/>
+        <text class="sv-tb" x="215" y="83"  text-anchor="middle">配置方案</text>
+        <text class="sv-s"  x="215" y="99"  text-anchor="middle">指标 · 主体 · 权重</text>
+        <text class="sv-s"  x="215" y="112" text-anchor="middle">目标 · 节点 · 分工</text>
+
+        <rect class="sv-box-a" x="294" y="61" width="118" height="58" rx="4"/>
+        <text class="sv-tb" x="353" y="83"  text-anchor="middle">发布方案</text>
+        <text class="sv-s"  x="353" y="99"  text-anchor="middle">配置就此冻结</text>
+        <text class="sv-s"  x="353" y="112" text-anchor="middle">要改须复制新版</text>
+
+        <rect class="sv-box" x="846" y="61" width="118" height="58" rx="4"/>
+        <text class="sv-tb" x="905" y="83"  text-anchor="middle">人力审核</text>
+        <text class="sv-s"  x="905" y="99"  text-anchor="middle">审核通过</text>
+        <text class="sv-s"  x="905" y="112" text-anchor="middle">或驳回(填原因)</text>
+
+        <rect class="sv-box-a" x="1122" y="61" width="118" height="58" rx="4"/>
+        <text class="sv-tb" x="1181" y="83"  text-anchor="middle">归档</text>
+        <text class="sv-s"  x="1181" y="99"  text-anchor="middle">本期就此封存</text>
+        <text class="sv-s"  x="1181" y="112" text-anchor="middle">纠错留到下期</text>
+
+        <!-- 部门填报人员 -->
+        <rect class="sv-box" x="432" y="153" width="118" height="58" rx="4"/>
+        <text class="sv-tb" x="491" y="175" text-anchor="middle">填报出分</text>
+        <text class="sv-s"  x="491" y="191" text-anchor="middle">逐行填实际值</text>
+        <text class="sv-s"  x="491" y="204" text-anchor="middle">或 Excel 批量导入</text>
+
+        <rect class="sv-box" x="570" y="153" width="118" height="58" rx="4"/>
+        <text class="sv-tb" x="629" y="175" text-anchor="middle">提交填报</text>
+        <text class="sv-s"  x="629" y="191" text-anchor="middle">有指标未填</text>
+        <text class="sv-s"  x="629" y="204" text-anchor="middle">则当场拦下</text>
+
+        <!-- 分公司核对人员 -->
+        <rect class="sv-box" x="708" y="245" width="118" height="58" rx="4"/>
+        <text class="sv-tb" x="767" y="267" text-anchor="middle">分公司核对</text>
+        <text class="sv-s"  x="767" y="283" text-anchor="middle">各分公司并行</text>
+        <text class="sv-s"  x="767" y="296" text-anchor="middle">确认 或 提争议</text>
+
+        <!-- 分管领导 -->
+        <rect class="sv-box" x="984" y="337" width="118" height="58" rx="4"/>
+        <text class="sv-tb" x="1043" y="359" text-anchor="middle">领导审批</text>
+        <text class="sv-s"  x="1043" y="375" text-anchor="middle">只审分管主体</text>
+        <text class="sv-s"  x="1043" y="388" text-anchor="middle">最终把关</text>
+
+        <!-- 系统自动 -->
+        <rect class="sv-box-sys" x="294" y="429" width="118" height="58" rx="4"/>
+        <text class="sv-t" x="353" y="451" text-anchor="middle">完整性检查</text>
+        <text class="sv-s" x="353" y="468" text-anchor="middle">生成填报单与明细</text>
+        <text class="sv-s" x="353" y="481" text-anchor="middle">冻结目标与规则副本</text>
+
+        <rect class="sv-box-sys" x="432" y="429" width="118" height="58" rx="4"/>
+        <text class="sv-t" x="491" y="451" text-anchor="middle">保存即计分</text>
+        <text class="sv-s" x="491" y="468" text-anchor="middle">完成率 · 得分率 · 得分</text>
+        <text class="sv-s" x="491" y="481" text-anchor="middle">并写出计算说明</text>
+
+        <rect class="sv-box-sys" x="570" y="429" width="118" height="58" rx="4"/>
+        <text class="sv-t" x="629" y="451" text-anchor="middle">生成核对任务</text>
+        <text class="sv-s" x="629" y="468" text-anchor="middle">按方案参与的</text>
+        <text class="sv-s" x="629" y="481" text-anchor="middle">各分公司一条</text>
+
+        <rect class="sv-box-sys" x="984" y="429" width="118" height="58" rx="4"/>
+        <text class="sv-t" x="1043" y="451" text-anchor="middle">生成考核结果</text>
+        <text class="sv-s" x="1043" y="468" text-anchor="middle">四个维度 + 排名</text>
+        <text class="sv-s" x="1043" y="481" text-anchor="middle">可钻取回明细</text>
+
+        <rect class="sv-box-sys" x="1122" y="429" width="118" height="58" rx="4"/>
+        <text class="sv-t" x="1181" y="451" text-anchor="middle">生成归档快照</text>
+        <text class="sv-s" x="1181" y="468" text-anchor="middle">带 SHA-256 校验和</text>
+        <text class="sv-s" x="1181" y="481" text-anchor="middle">全表转为只读</text>
+
+        <!-- 主流程连线 -->
+        <line class="sv-line-a" x1="274" y1="90" x2="292" y2="90" marker-end="url(#f1-ar)"/>
+        <polyline class="sv-line-a" points="412,90 422,90 422,182 430,182" marker-end="url(#f1-ar)"/>
+        <line class="sv-line-a" x1="550" y1="182" x2="568" y2="182" marker-end="url(#f1-ar)"/>
+        <polyline class="sv-line-a" points="688,182 698,182 698,274 706,274" marker-end="url(#f1-ar)"/>
+        <polyline class="sv-line-a" points="826,274 836,274 836,90 844,90" marker-end="url(#f1-ar)"/>
+        <polyline class="sv-line-a" points="964,90 974,90 974,366 982,366" marker-end="url(#f1-ar)"/>
+        <polyline class="sv-line-a" points="1102,366 1112,366 1112,90 1120,90" marker-end="url(#f1-ar)"/>
+
+        <!-- 触发系统动作 -->
+        <line class="sv-dash" x1="353" y1="119" x2="353" y2="427" marker-end="url(#f1-ard)"/>
+        <line class="sv-dash" x1="491" y1="211" x2="491" y2="427" marker-end="url(#f1-ard)"/>
+        <line class="sv-dash" x1="629" y1="211" x2="629" y2="427" marker-end="url(#f1-ard)"/>
+        <line class="sv-dash" x1="1043" y1="395" x2="1043" y2="427" marker-end="url(#f1-ard)"/>
+        <line class="sv-dash" x1="1181" y1="119" x2="1181" y2="427" marker-end="url(#f1-ard)"/>
+      </svg>
+    </div>
+    <figcaption><b>图 1</b>一个考核周期的角色动线。实线是单据的流转方向,虚线是人的动作触发的系统动作——发布、保存、提交、审批通过、归档这五处,系统各自做一件不需要人参与的事。驳回路径见图 2。</figcaption>
+  </figure>
+
+  <figure class="wide">
+    <div class="canvas">
+      <svg viewBox="0 0 1202 320" role="img" aria-label="填报单状态机:填报中经提交进入分公司核对中,全部确认后进入人力审核中,审核通过进入领导审批中,审批通过为已通过,归档为已归档;每一步转换都带闸门条件,人力审核与领导审批可驳回并退回上一节点;提交之后实际值冻结。">
+        <defs>
+          <marker id="f2-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" class="sv-arrow-a"/>
+          </marker>
+          <marker id="f2-as" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" class="sv-arrow-s"/>
+          </marker>
+        </defs>
+
+        <!-- 入口 -->
+        <rect class="sv-box-sys" x="16" y="6" width="140" height="44" rx="4"/>
+        <text class="sv-t" x="86" y="26" text-anchor="middle">方案发布</text>
+        <text class="sv-s" x="86" y="41" text-anchor="middle">每个参与主体一张单</text>
+        <line class="sv-line-a" x1="60" y1="50" x2="60" y2="124" marker-end="url(#f2-ar)"/>
+
+        <!-- 状态 -->
+        <rect class="sv-box" x="16"   y="126" width="140" height="54" rx="4"/>
+        <text class="sv-tb" x="86"   y="150" text-anchor="middle">填报中</text>
+        <text class="sv-s"  x="86"   y="167" text-anchor="middle">部门填报人员</text>
+
+        <rect class="sv-box" x="222"  y="126" width="140" height="54" rx="4"/>
+        <text class="sv-tb" x="292"  y="150" text-anchor="middle">分公司核对中</text>
+        <text class="sv-s"  x="292"  y="167" text-anchor="middle">分公司核对人员</text>
+
+        <rect class="sv-box" x="428"  y="126" width="140" height="54" rx="4"/>
+        <text class="sv-tb" x="498"  y="150" text-anchor="middle">人力审核中</text>
+        <text class="sv-s"  x="498"  y="167" text-anchor="middle">人力审核</text>
+
+        <rect class="sv-box" x="634"  y="126" width="140" height="54" rx="4"/>
+        <text class="sv-tb" x="704"  y="150" text-anchor="middle">领导审批中</text>
+        <text class="sv-s"  x="704"  y="167" text-anchor="middle">分管领导</text>
+
+        <rect class="sv-box-a" x="840"  y="126" width="140" height="54" rx="4"/>
+        <text class="sv-tb" x="910"  y="150" text-anchor="middle">已通过</text>
+        <text class="sv-s"  x="910"  y="167" text-anchor="middle">结果已生成</text>
+
+        <rect class="sv-lock" x="1046" y="126" width="140" height="54" rx="4"/>
+        <text class="sv-tb" x="1116" y="150" text-anchor="middle">已归档</text>
+        <text class="sv-s"  x="1116" y="167" text-anchor="middle">不可改不可删</text>
+
+        <!-- 闸门与转换 -->
+        <text class="sv-tb" x="189"  y="90"  text-anchor="middle" fill="var(--accent)">提交填报</text>
+        <text class="sv-s"  x="189"  y="105" text-anchor="middle">闸门:全部指标已填实际值</text>
+        <text class="sv-s"  x="189"  y="118" text-anchor="middle">岗位:部门填报人员</text>
+        <line class="sv-line-a" x1="156" y1="153" x2="220" y2="153" marker-end="url(#f2-ar)"/>
+
+        <text class="sv-tb" x="395"  y="90"  text-anchor="middle" fill="var(--accent)">全部确认无误</text>
+        <text class="sv-s"  x="395"  y="105" text-anchor="middle">闸门:有一家提争议就不推进</text>
+        <text class="sv-s"  x="395"  y="118" text-anchor="middle">方案未配核对方时自动跳过</text>
+        <line class="sv-line-a" x1="362" y1="153" x2="426" y2="153" marker-end="url(#f2-ar)"/>
+
+        <text class="sv-tb" x="601"  y="90"  text-anchor="middle" fill="var(--accent)">审核通过</text>
+        <text class="sv-s"  x="601"  y="105" text-anchor="middle">闸门:岗位 = 人力审核</text>
+        <text class="sv-s"  x="601"  y="118" text-anchor="middle">审核意见选填</text>
+        <line class="sv-line-a" x1="568" y1="153" x2="632" y2="153" marker-end="url(#f2-ar)"/>
+
+        <text class="sv-tb" x="807"  y="90"  text-anchor="middle" fill="var(--accent)">审批通过</text>
+        <text class="sv-s"  x="807"  y="105" text-anchor="middle">闸门:岗位 = 本主体分管领导</text>
+        <text class="sv-s"  x="807"  y="118" text-anchor="middle">通过即生成四维结果</text>
+        <line class="sv-line-a" x1="774" y1="153" x2="838" y2="153" marker-end="url(#f2-ar)"/>
+
+        <text class="sv-tb" x="1013" y="90"  text-anchor="middle" fill="var(--accent)">归档</text>
+        <text class="sv-s"  x="1013" y="105" text-anchor="middle">闸门:岗位 = 人力审核</text>
+        <text class="sv-s"  x="1013" y="118" text-anchor="middle">快照带 SHA-256 校验和</text>
+        <line class="sv-line-a" x1="980" y1="153" x2="1044" y2="153" marker-end="url(#f2-ar)"/>
+
+        <!-- 驳回 -->
+        <polyline class="sv-stop" points="704,180 704,214 500,214 500,182" marker-end="url(#f2-as)"/>
+        <text class="sv-s" x="601" y="208" text-anchor="middle" fill="var(--stop)">驳回 · 原因必填 · 退回上一节点</text>
+
+        <polyline class="sv-stop" points="476,180 476,252 292,252 292,182" marker-end="url(#f2-as)"/>
+        <text class="sv-s" x="384" y="246" text-anchor="middle" fill="var(--stop)">驳回 → 全部分公司重新核对</text>
+
+        <!-- 冻结区间 -->
+        <path class="sv-rule" d="M222,278 L222,288 L1186,288 L1186,278" fill="none" stroke="var(--rule-strong)"/>
+        <text class="sv-s" x="704" y="306" text-anchor="middle">提交之后实际值冻结 —— 改数只能走「数据调整」申请,备注不受限制</text>
+      </svg>
+    </div>
+    <figcaption><b>图 2</b>填报单状态机与它的闸门。每一次流转都由服务端 hook(<span class="mono">src/hooks/sheet.hook.ts</span>)判定,按钮本身只写「待执行动作」——绕过按钮直接写状态字段同样会被拦下。方案未配置分公司核对节点时,提交后直接进入人力审核;此时人力审核驳回退回的是「填报中」。</figcaption>
+  </figure>
+
+  <div class="col">
+    <h3>每一步系统保证了什么</h3>
+  </div>
+  <div class="tw">
+    <table>
+      <thead><tr><th style="width:8%">步骤</th><th style="width:16%">谁</th><th style="width:30%">做什么</th><th>系统保证</th></tr></thead>
+      <tbody>
+        <tr><td class="num">1</td><td>人力审核</td><td>新建方案版本(可复制上一版)→ 选指标 → 分配权重与目标 → 配考核关系、分管领导、审核节点 → 到人分工</td><td>草稿期自由改;发布时逐条校验,不合格发不出去</td></tr>
+        <tr><td class="num">2</td><td>人力审核</td><td>点「发布方案」</td><td>方案冻结;每个主体生成一张填报单,指标行带<b>目标、权重、计分规则的冻结副本</b>;历史周期不受后续指标库改动影响</td></tr>
+        <tr><td class="num">3</td><td>部门填报人员</td><td>逐行填实际值(或 Excel 导入),点「提交填报」</td><td>保存即出分并写计算说明;有指标未填不能提交;提交后数据冻结</td></tr>
+        <tr><td class="num">4</td><td>分公司核对人员</td><td>并行核对:「确认无误」或「提出争议」(必须写意见)</td><td>全部确认才推进;有争议不能推进;方案里没有核对方时自动跳过本节点</td></tr>
+        <tr><td class="num">5</td><td>人力审核<br>分管领导</td><td>「审核通过」或「驳回」</td><td>驳回必须填原因,退回上一节点;每一步谁、何时、从哪到哪、原因全部留痕</td></tr>
+        <tr><td class="num">6</td><td>系统</td><td>每次保存实际值即计分</td><td>口径唯一、可重复计算;计算过程逐条可复核</td></tr>
+        <tr><td class="num">7</td><td>系统</td><td>审批通过时生成四维结果与排名</td><td>加减分、数据调整落地后自动重算</td></tr>
+        <tr><td class="num">8</td><td>人力审核</td><td>点「归档」</td><td>生成带校验和的快照;之后填报单、明细、加减分全部锁定</td></tr>
+      </tbody>
+      <caption><b>表 2</b>流程步骤与系统保证。左边四列是人看得见的操作,右边一列是系统在背后不允许发生的事——这一列才是系统相对 Excel 的全部价值。</caption>
+    </table>
+  </div>
+</section>
+
+<section id="s4">
+  <div class="col">
+    <h2><i>04</i>方案配置与发布</h2>
+    <p class="lede">方案是一次考核的全部配置:考谁、考什么指标、各占多少权重、目标是多少、走几个审核环节、谁分管谁、分数怎么落到人头上。发布是整条流程唯一一次不可逆的动作——过了这道门,配置就冻结了。</p>
+
+    <h3>发布这道门为什么重要</h3>
+    <p>Excel 时代最难查的账是「这个数当时是按什么口径算的」。系统的答案是:<strong>发布时把口径复制一份,钉在每一行明细上</strong>。</p>
+  </div>
+
+  <figure class="wide">
+    <div class="canvas">
+      <svg viewBox="0 0 1180 440" role="img" aria-label="方案发布机制:指标库与草稿方案配置一并进入发布前完整性检查的八项校验,通过后为每个主体生成填报单与明细行,明细行上的目标值、权重、计分规则是发布那一刻的冻结副本而非引用;检查不通过时方案保持草稿并逐条列出问题;时间轴显示后续修改指标库不会回溯改动已发布周期。">
+        <defs>
+          <marker id="f3-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" class="sv-arrow-a"/>
+          </marker>
+          <marker id="f3-aw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" class="sv-arrow-w"/>
+          </marker>
+          <marker id="f3-a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" class="sv-arrow-3"/>
+          </marker>
+        </defs>
+
+        <!-- 源 -->
+        <rect class="sv-box" x="16" y="44" width="214" height="84" rx="4"/>
+        <text class="sv-tb" x="30" y="68">指标库</text>
+        <text class="sv-s"  x="30" y="88">方向 · 计分方式 · 封顶保底</text>
+        <text class="sv-s"  x="30" y="104">阶梯区间</text>
+        <text class="sv-m"  x="30" y="121">kpi_indicator</text>
+
+        <rect class="sv-box" x="16" y="144" width="214" height="110" rx="4"/>
+        <text class="sv-tb" x="30" y="168">考核方案 · 草稿</text>
+        <text class="sv-s"  x="30" y="188">流程节点 · 参与主体</text>
+        <text class="sv-s"  x="30" y="204">指标下达(指标 × 主体)</text>
+        <text class="sv-s"  x="30" y="220">权重 · 目标值 · 分管领导</text>
+        <text class="sv-s"  x="30" y="236">到人分工 · 个人承接项</text>
+
+        <line class="sv-line-a" x1="230" y1="86"  x2="276" y2="86"  marker-end="url(#f3-ar)"/>
+        <line class="sv-line-a" x1="230" y1="199" x2="276" y2="199" marker-end="url(#f3-ar)"/>
+
+        <!-- 闸门 -->
+        <rect class="sv-gate" x="280" y="44" width="206" height="210" rx="4"/>
+        <text class="sv-tb" x="294" y="68">发布前完整性检查</text>
+        <text class="sv-s" x="294" y="90">1 流程节点配置合法</text>
+        <text class="sv-s" x="294" y="107">2 至少一个参与主体</text>
+        <text class="sv-s" x="294" y="124">3 每个主体至少一条下达</text>
+        <text class="sv-s" x="294" y="141">4 每主体权重合计 = 100%</text>
+        <text class="sv-s" x="294" y="158">5 目标值齐全</text>
+        <text class="sv-s" x="294" y="175">6 每个主体已配分管领导</text>
+        <text class="sv-s" x="294" y="192">7 无下达给非参与主体</text>
+        <text class="sv-s" x="294" y="209">8 无未关闭的指标争议</text>
+
+        <line class="sv-line-a" x1="486" y1="68" x2="522" y2="68" marker-end="url(#f3-ar)"/>
+        <text class="sv-s" x="504" y="58" text-anchor="middle" fill="var(--accent)">通过</text>
+
+        <polyline class="sv-line" points="383,254 383,278" marker-end="url(#f3-aw)" stroke="var(--warn)"/>
+        <rect class="sv-box" x="280" y="282" width="206" height="56" rx="4"/>
+        <text class="sv-tb" x="294" y="303" fill="var(--warn)">不通过</text>
+        <text class="sv-s"  x="294" y="320">方案保持草稿</text>
+        <text class="sv-s"  x="294" y="333">右下角逐条列出问题所在</text>
+
+        <!-- 产物 -->
+        <rect class="sv-box-a" x="526" y="44" width="638" height="48" rx="4"/>
+        <text class="sv-tb" x="542" y="66">填报单 × N —— 每个参与主体一张</text>
+        <text class="sv-m"  x="542" y="82">kpi_entry_sheet</text>
+
+        <line class="sv-line" x1="845" y1="92" x2="845" y2="108" marker-end="url(#f3-a3)"/>
+
+        <!-- 明细表 -->
+        <rect x="526" y="110" width="309" height="72" fill="var(--accent-soft)"/>
+        <rect x="526" y="110" width="638" height="72" fill="none" stroke="var(--rule-strong)"/>
+        <line class="sv-rule" x1="526" y1="134" x2="1164" y2="134" stroke="var(--rule-strong)"/>
+        <line class="sv-rule" x1="526" y1="158" x2="1164" y2="158"/>
+        <line class="sv-rule" x1="835" y1="110" x2="835" y2="182" stroke="var(--rule-strong)"/>
+
+        <text class="sv-s" x="538"  y="126" font-weight="600">指标</text>
+        <text class="sv-s" x="640"  y="126" font-weight="600">目标值</text>
+        <text class="sv-s" x="722"  y="126" font-weight="600">权重</text>
+        <text class="sv-s" x="780"  y="126" font-weight="600">计分规则</text>
+        <text class="sv-s" x="848"  y="126" font-weight="600">实际值</text>
+        <text class="sv-s" x="930"  y="126" font-weight="600">完成率</text>
+        <text class="sv-s" x="1012" y="126" font-weight="600">得分率</text>
+        <text class="sv-s" x="1102" y="126" font-weight="600">得分</text>
+
+        <text class="sv-s" x="538"  y="150">营业收入完成率</text>
+        <text class="sv-m" x="640"  y="150">1200</text>
+        <text class="sv-m" x="722"  y="150">50</text>
+        <text class="sv-s" x="780"  y="150">线性</text>
+        <text class="sv-m" x="848"  y="150">1320</text>
+        <text class="sv-m" x="930"  y="150">110%</text>
+        <text class="sv-m" x="1012" y="150">110%</text>
+        <text class="sv-m" x="1102" y="150">55.0</text>
+
+        <text class="sv-s" x="538"  y="174">客户满意度</text>
+        <text class="sv-m" x="640"  y="174">90</text>
+        <text class="sv-m" x="722"  y="174">20</text>
+        <text class="sv-s" x="780"  y="174">阶梯</text>
+        <text class="sv-m" x="848"  y="174">87.3</text>
+        <text class="sv-m" x="930"  y="174">97%</text>
+        <text class="sv-m" x="1012" y="174">90%</text>
+        <text class="sv-m" x="1102" y="174">18.0</text>
+
+        <path d="M526,192 L526,200 L835,200 L835,192" fill="none" stroke="var(--accent)"/>
+        <text class="sv-s" x="680" y="216" text-anchor="middle" fill="var(--accent)">发布时写入的冻结副本 · 只读</text>
+        <path class="sv-rule" d="M835,192 L835,200 L1164,200 L1164,192" fill="none" stroke="var(--rule-strong)"/>
+        <text class="sv-s" x="1000" y="216" text-anchor="middle">填报时由计分引擎算出</text>
+
+        <rect class="sv-box" x="526" y="250" width="638" height="88" rx="4"/>
+        <text class="sv-tb" x="542" y="274">为什么必须是副本,而不是引用</text>
+        <text class="sv-s"  x="542" y="296">明细行上的目标值、权重、计分规则,是发布那一刻从指标库与指标下达复制过来的值。</text>
+        <text class="sv-s"  x="542" y="314">此后调整指标口径、改目标值、停用指标,都不会回头改动已发布周期的任何一行 ——</text>
+        <text class="sv-s"  x="542" y="332">去年算过的账,今年再打开还是同一个数。</text>
+
+        <line class="sv-rule" x1="16" y1="360" x2="1164" y2="360"/>
+
+        <!-- 时间轴 -->
+        <line class="sv-line" x1="60" y1="396" x2="1120" y2="396" marker-end="url(#f3-a3)"/>
+        <text class="sv-s" x="1136" y="400">时间</text>
+
+        <circle cx="250" cy="396" r="4.5" fill="var(--accent)"/>
+        <text class="sv-tb" x="250" y="382" text-anchor="middle">T1 · 方案发布</text>
+        <text class="sv-s"  x="250" y="414" text-anchor="middle">明细行写入冻结副本</text>
+
+        <circle cx="590" cy="396" r="4.5" fill="var(--ok)"/>
+        <text class="sv-tb" x="590" y="382" text-anchor="middle">T2 · 指标库改口径</text>
+        <text class="sv-s"  x="590" y="414" text-anchor="middle" fill="var(--ok)">已发布周期分毫不动</text>
+
+        <circle cx="930" cy="396" r="4.5" fill="var(--accent)"/>
+        <text class="sv-tb" x="930" y="382" text-anchor="middle">T3 · 下期方案发布</text>
+        <text class="sv-s"  x="930" y="414" text-anchor="middle">新周期采用新口径</text>
+      </svg>
+    </div>
+    <figcaption><b>图 3</b>发布即冻结。八项检查任意一项不过,方案原地保持草稿并逐条给出问题;全部通过才生成填报单。检查之外还有一条前置条件:同一考核周期只允许一个已发布版本。</figcaption>
+  </figure>
+
+  <div class="col">
+    <h3>指标库:计分规则是数据,不是代码</h3>
+    <p>指标只建一次,以后各期方案都从库里选。指标编码全系统唯一,口径变了不改旧指标——新建一条新版本、把旧的停用、用「替代版本」串起版本链,历史周期照旧可查。</p>
+  </div>
+
+  <div class="shots two">
+    <figure>
+      <div class="shot"><img src="../手册/图片/02-01-zhibiaoku-liebiao.png" alt="指标库列表页,顶部有全部指标与启用中两个视图页签,右上角是新建、导入、导出按钮" loading="lazy"></div>
+      <figcaption><b>图 4</b>指标库列表。支持 Excel 批量导入建库,首次上线时现行考核表可以整批灌进来。</figcaption>
+    </figure>
+    <figure>
+      <div class="shot"><img src="../手册/图片/02-02-xinjian-zhibiao-shangban.png" alt="新建指标窗口,上半部分是基本信息,下半部分是计分规则区,含指标方向、计分方式、完成率封顶与保底" loading="lazy"></div>
+      <figcaption><b>图 5</b>新建指标的「计分规则」区。方向决定完成率怎么算,计分方式决定得分率怎么取——两个下拉决定这个指标一辈子的算法。</figcaption>
+    </figure>
+  </div>
+
+  <figure>
+    <div class="shot"><img src="../手册/图片/02-05-jieti-qujian.png" alt="指标详情页相关页签下的阶梯区间四行,每行含区间名称、完成率下限、完成率上限与得分率" loading="lazy"></div>
+    <figcaption><b>图 6</b>阶梯计分的区间表挂在指标下,按行维护。区间是数据行不是代码分支——加一档、改一档得分率,都不需要开发介入。</figcaption>
+  </figure>
+
+  <div class="col">
+    <h3>方案:四张明细表配齐一次考核</h3>
+    <p>方案详情页把一次考核要配的东西收在四张内嵌明细表里:<strong>审核流程节点</strong>(走几步、每步哪个岗位审)、<strong>参与主体与考核关系</strong>(考谁、谁分管、主体权重)、<strong>指标下达</strong>(指标 × 主体 × 权重 × 目标值)、<strong>到人分工</strong>(部门得分怎么落到人头上)。第二期开始,「复制自版本」可以把上一期整套配置搬过来再改数。</p>
+  </div>
+
+  <figure>
+    <div class="shot"><img src="../手册/图片/02-10-fangan-xiangqing.png" alt="草稿状态的方案详情页,顶部是状态条,右上角是发布方案按钮,下方是相关页签" loading="lazy"></div>
+    <figcaption><b>图 7</b>方案详情页(草稿)。顶部状态条:草稿 → 已发布 → 已关闭 → 已归档;右上角是那颗不可逆的「发布方案」。</figcaption>
+  </figure>
+
+  <div class="shots two">
+    <figure>
+      <div class="shot"><img src="../手册/图片/02-11-liucheng-jiedian.png" alt="方案相关页签下的流程节点四行,含顺序、节点类型、节点名称与审核岗位" loading="lazy"></div>
+      <figcaption><b>图 8</b>审核流程节点。四种节点类型可增删、可改审核岗位;本期不需要分公司核对,删掉那一行即可,提交后直接进人力审核。</figcaption>
+    </figure>
+    <figure>
+      <div class="shot"><img src="../手册/图片/02-12-canyu-zhuti.png" alt="方案相关页签下的参与主体五行,含考核主体、主体类型、考核部门、主体权重与分管领导" loading="lazy"></div>
+      <figcaption><b>图 9</b>参与主体与考核关系。这里配的「分管领导」,既决定谁审这张单,也决定谁看得见这张单——一处配置管两件事。</figcaption>
+    </figure>
+  </div>
+
+  <figure>
+    <div class="shot"><img src="../手册/图片/02-15-xiada-hangnei-bianji.png" alt="指标下达列表处于行内编辑状态,双击目标值单元格改为 380 后工具条出现全部保存按钮" loading="lazy"></div>
+    <figcaption><b>图 10</b>指标下达支持整表行内编辑,也支持「导出 XLSX → 在 Excel 里填 → 导入」的批量路径。这是配置阶段工作量最大的一张表,两条路都留着。</figcaption>
+  </figure>
+
+  <div class="col">
+    <h3>发布:先拦下,再放行</h3>
+    <p>发布不是一个「保存并推进」的按钮,而是一次全量体检。检查不通过时,系统<strong>不做部分发布</strong>——方案原地不动,把问题逐条摆出来。</p>
+  </div>
+
+  <div class="shots two">
+    <figure>
+      <div class="shot"><img src="../手册/图片/02-23-fabu-jiancha-butongguo.png" alt="发布前完整性检查未通过时右下角逐条列出的问题提示,含市场部权重合计 90% 与华北分公司培训完成率未设置目标值两条" loading="lazy"></div>
+      <figcaption><b>图 11</b><span class="pill stop">拦下</span> 检查未通过。提示直接点名是哪个主体的哪一条:「市场部的权重合计为 90%,必须等于 100%」「华北分公司的培训完成率未设置目标值」——不是一句「配置有误」。</figcaption>
+    </figure>
+    <figure>
+      <div class="shot"><img src="../手册/图片/02-24-fabu-chenggong.png" alt="发布成功后的方案详情页,状态条推进到已发布,出现发布时间与发布人,右上角按钮变成关闭方案" loading="lazy"></div>
+      <figcaption><b>图 12</b><span class="pill ok">放行</span> 发布成功。状态条推进到「已发布」,盖上发布时间与发布人,右上角的按钮换成「关闭方案」——同一个位置不会再出现第二次发布。</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="s5">
+  <div class="col">
+    <h2><i>05</i>填报与实时计分</h2>
+    <p class="lede">填报保留 Excel 的手感:一屏网格、按行填数、保存即出分。变的是口径的来源——得分不再由每张表自己的公式算出,而是由全系统唯一的计分引擎算出,并把算式写下来备查。</p>
+
+    <h3>从实际值到最终得分</h3>
+    <p>整条计算链路只有五步,每一步的输入输出都落库,任何一个数都能倒推回它的上一步。</p>
+  </div>
+
+  <figure class="wide">
+    <div class="canvas">
+      <svg viewBox="0 0 1180 376" role="img" aria-label="计分链路:实际值按指标方向换算为完成率,完成率经四种计分方式之一得出得分率,得分率乘权重得指标得分,各行求和加已批准加减分得最终得分;下方给出营业收入完成率的示例数值。">
+        <defs>
+          <marker id="f4-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" class="sv-arrow-a"/>
+          </marker>
+          <marker id="f4-a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" class="sv-arrow-3"/>
+          </marker>
+        </defs>
+
+        <!-- 阶段 -->
+        <rect class="sv-box" x="16" y="170" width="110" height="56" rx="4"/>
+        <text class="sv-tb" x="71" y="196" text-anchor="middle">实际值</text>
+        <text class="sv-s"  x="71" y="212" text-anchor="middle">人填 / 导入</text>
+
+        <rect class="sv-box" x="206" y="170" width="110" height="56" rx="4"/>
+        <text class="sv-tb" x="261" y="196" text-anchor="middle">完成率</text>
+        <text class="sv-s"  x="261" y="212" text-anchor="middle">%</text>
+
+        <rect class="sv-box" x="600" y="170" width="110" height="56" rx="4"/>
+        <text class="sv-tb" x="655" y="196" text-anchor="middle">得分率</text>
+        <text class="sv-s"  x="655" y="212" text-anchor="middle">%</text>
+
+        <rect class="sv-box" x="790" y="170" width="110" height="56" rx="4"/>
+        <text class="sv-tb" x="845" y="196" text-anchor="middle">指标得分</text>
+        <text class="sv-s"  x="845" y="212" text-anchor="middle">单行</text>
+
+        <rect class="sv-box-a" x="1000" y="170" width="164" height="56" rx="4"/>
+        <text class="sv-tb" x="1082" y="192" text-anchor="middle">最终得分</text>
+        <text class="sv-s"  x="1082" y="209" text-anchor="middle">指标得分合计</text>
+        <text class="sv-s"  x="1082" y="221" text-anchor="middle">+ 已批准加减分</text>
+
+        <!-- 方向换算 -->
+        <text class="sv-s" x="166" y="140" text-anchor="middle">越高越好 = 实际 ÷ 目标</text>
+        <text class="sv-s" x="166" y="154" text-anchor="middle">越低越好 = 目标 ÷ 实际</text>
+        <line class="sv-line-a" x1="126" y1="198" x2="204" y2="198" marker-end="url(#f4-ar)"/>
+
+        <!-- 四选一 -->
+        <text class="sv-s" x="458" y="100" text-anchor="middle" font-weight="600">按指标声明的计分方式四选一</text>
+
+        <rect class="sv-box" x="346" y="114" width="224" height="36" rx="4"/>
+        <text class="sv-t" x="358" y="130" font-size="11.5">完成率线性</text>
+        <text class="sv-s" x="358" y="144" font-size="10">得分率 = 完成率,限定在保底与封顶之间</text>
+
+        <rect class="sv-box" x="346" y="158" width="224" height="36" rx="4"/>
+        <text class="sv-t" x="358" y="174" font-size="11.5">阶梯计分</text>
+        <text class="sv-s" x="358" y="188" font-size="10">完成率落在哪一档,取该档的得分率</text>
+
+        <rect class="sv-box" x="346" y="202" width="224" height="36" rx="4"/>
+        <text class="sv-t" x="358" y="218" font-size="11.5">区间插值</text>
+        <text class="sv-s" x="358" y="232" font-size="10">下限→0,100%→100%,上限→封顶</text>
+
+        <rect class="sv-box" x="346" y="246" width="224" height="36" rx="4"/>
+        <text class="sv-t" x="358" y="262" font-size="11.5">自定义公式</text>
+        <text class="sv-s" x="358" y="276" font-size="10">CEL 表达式直接给出得分</text>
+
+        <line class="sv-line" x1="316" y1="198" x2="344" y2="132" marker-end="url(#f4-a3)"/>
+        <line class="sv-line" x1="316" y1="198" x2="344" y2="176" marker-end="url(#f4-a3)"/>
+        <line class="sv-line" x1="316" y1="198" x2="344" y2="220" marker-end="url(#f4-a3)"/>
+        <line class="sv-line" x1="316" y1="198" x2="344" y2="264" marker-end="url(#f4-a3)"/>
+
+        <line class="sv-line" x1="570" y1="132" x2="598" y2="198" marker-end="url(#f4-a3)"/>
+        <line class="sv-line" x1="570" y1="176" x2="598" y2="198" marker-end="url(#f4-a3)"/>
+        <line class="sv-line" x1="570" y1="220" x2="598" y2="198" marker-end="url(#f4-a3)"/>
+        <line class="sv-line" x1="570" y1="264" x2="598" y2="198" marker-end="url(#f4-a3)"/>
+
+        <!-- 权重与合计 -->
+        <text class="sv-s" x="750" y="190" text-anchor="middle">× 权重 ÷ 100</text>
+        <line class="sv-line-a" x1="710" y1="198" x2="788" y2="198" marker-end="url(#f4-ar)"/>
+
+        <text class="sv-s" x="950" y="176" text-anchor="middle">Σ 全部指标行</text>
+        <text class="sv-s" x="950" y="190" text-anchor="middle">+ 已批准的加减分</text>
+        <line class="sv-line-a" x1="900" y1="198" x2="998" y2="198" marker-end="url(#f4-ar)"/>
+
+        <line class="sv-rule" x1="16" y1="302" x2="1164" y2="302"/>
+
+        <!-- 示例 -->
+        <text class="sv-s" x="16" y="322">示例 · 营业收入完成率:目标 1200 万元,实际 1320 万元,权重 50,完成率线性、封顶 120%</text>
+        <text class="sv-tb" x="71"   y="352" text-anchor="middle" fill="var(--accent)" font-family="var(--font-mono)">1320</text>
+        <text class="sv-tb" x="261"  y="352" text-anchor="middle" fill="var(--accent)" font-family="var(--font-mono)">110%</text>
+        <text class="sv-tb" x="655"  y="352" text-anchor="middle" fill="var(--accent)" font-family="var(--font-mono)">110%</text>
+        <text class="sv-tb" x="845"  y="352" text-anchor="middle" fill="var(--accent)" font-family="var(--font-mono)">55.0</text>
+        <text class="sv-s"  x="1082" y="352" text-anchor="middle">与另两行合计 88.0(见表 3)</text>
+      </svg>
+    </div>
+    <figcaption><b>图 4</b>计分链路。四种计分方式只在中间一段分岔,前后完全一致——这是「口径唯一」的具体含义:换计分方式改的是一个下拉,不是一套算法。引擎在 <span class="mono">src/lib/scoring.ts</span>,是纯函数,可单元测试、可逐条复核。</figcaption>
+  </figure>
+
+  <div class="col">
+    <h3>四种计分方式画出来是什么形状</h3>
+    <p>同一个完成率,四种方式给出的得分率完全不同。选哪一种取决于指标想鼓励什么:线性鼓励多超额、区间插值容忍未达标但压缩超额收益、阶梯只认档位不认零头。</p>
+  </div>
+
+  <figure>
+    <div class="canvas">
+      <svg viewBox="0 0 780 476" role="img" aria-label="三种计分方式的得分率曲线:完成率线性是一条直线并在封顶 120% 处转平;区间插值在完成率 60% 以下为 0,60% 到 100% 之间陡升到 100%,再缓升到封顶;阶梯计分是四段台阶。三条曲线在完成率 100%、得分率 100% 处重合。">
+        <defs>
+          <marker id="f5-a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" class="sv-arrow-3"/>
+          </marker>
+        </defs>
+
+        <!-- 图例 -->
+        <line x1="92" y1="44" x2="118" y2="44" stroke="var(--c1)" stroke-width="2.5"/>
+        <text class="sv-s" x="124" y="48">完成率线性(封顶 120%)</text>
+        <line x1="320" y1="44" x2="346" y2="44" stroke="var(--c2)" stroke-width="2.5"/>
+        <text class="sv-s" x="352" y="48">区间插值(下限 60%)</text>
+        <line x1="516" y1="44" x2="542" y2="44" stroke="var(--c3)" stroke-width="2.5"/>
+        <text class="sv-s" x="548" y="48">阶梯计分(四档)</text>
+
+        <!-- 网格 -->
+        <line class="sv-rule" x1="92" y1="400.00" x2="712" y2="400.00"/>
+        <line class="sv-rule" x1="92" y1="350.15" x2="712" y2="350.15"/>
+        <line class="sv-rule" x1="92" y1="300.31" x2="712" y2="300.31"/>
+        <line class="sv-rule" x1="92" y1="250.46" x2="712" y2="250.46"/>
+        <line class="sv-rule" x1="92" y1="200.62" x2="712" y2="200.62"/>
+        <line class="sv-rule" x1="92" y1="150.77" x2="712" y2="150.77"/>
+        <line class="sv-rule" x1="92" y1="100.92" x2="712" y2="100.92"/>
+        <line class="sv-rule" x1="180.57" y1="76" x2="180.57" y2="400"/>
+        <line class="sv-rule" x1="269.14" y1="76" x2="269.14" y2="400"/>
+        <line class="sv-rule" x1="357.71" y1="76" x2="357.71" y2="400"/>
+        <line class="sv-rule" x1="446.29" y1="76" x2="446.29" y2="400"/>
+        <line class="sv-rule" x1="534.86" y1="76" x2="534.86" y2="400"/>
+        <line class="sv-rule" x1="623.43" y1="76" x2="623.43" y2="400"/>
+        <line class="sv-rule" x1="712.00" y1="76" x2="712.00" y2="400"/>
+
+        <!-- 轴 -->
+        <line x1="92" y1="76" x2="92" y2="400" stroke="var(--rule-strong)" stroke-width="1"/>
+        <line x1="92" y1="400" x2="712" y2="400" stroke="var(--rule-strong)" stroke-width="1"/>
+
+        <text class="sv-m" x="82" y="404" text-anchor="end">0</text>
+        <text class="sv-m" x="82" y="354" text-anchor="end">20</text>
+        <text class="sv-m" x="82" y="304" text-anchor="end">40</text>
+        <text class="sv-m" x="82" y="254" text-anchor="end">60</text>
+        <text class="sv-m" x="82" y="204" text-anchor="end">80</text>
+        <text class="sv-m" x="82" y="155" text-anchor="end">100</text>
+        <text class="sv-m" x="82" y="105" text-anchor="end">120</text>
+
+        <text class="sv-m" x="92"     y="420" text-anchor="middle">0</text>
+        <text class="sv-m" x="180.57" y="420" text-anchor="middle">20</text>
+        <text class="sv-m" x="269.14" y="420" text-anchor="middle">40</text>
+        <text class="sv-m" x="357.71" y="420" text-anchor="middle">60</text>
+        <text class="sv-m" x="446.29" y="420" text-anchor="middle">80</text>
+        <text class="sv-m" x="534.86" y="420" text-anchor="middle">100</text>
+        <text class="sv-m" x="623.43" y="420" text-anchor="middle">120</text>
+        <text class="sv-m" x="712.00" y="420" text-anchor="middle">140</text>
+
+        <text class="sv-s" x="402" y="442" text-anchor="middle">完成率(%)</text>
+        <text class="sv-s" x="30" y="238" text-anchor="middle" transform="rotate(-90 30 238)">得分率(%)</text>
+
+        <!-- 封顶参考 -->
+        <line x1="92" y1="100.92" x2="712" y2="100.92" stroke="var(--ink-3)" stroke-width="1" stroke-dasharray="3 3"/>
+        <text class="sv-s" x="716" y="97">封顶</text>
+
+        <!-- 曲线 -->
+        <polyline points="92,400 623.43,100.92 712,100.92" fill="none" stroke="var(--c1)" stroke-width="2.5" stroke-linejoin="round"/>
+        <polyline points="92,400 357.71,400 534.86,150.77 623.43,100.92 712,100.92" fill="none" stroke="var(--c2)" stroke-width="2.5" stroke-linejoin="round"/>
+        <polyline points="92,400 446.29,400 446.29,225.54 512.57,225.54 512.57,175.69 534.86,175.69 534.86,150.77 712,150.77" fill="none" stroke="var(--c3)" stroke-width="2.5" stroke-linejoin="round"/>
+
+        <!-- 达标点 -->
+        <circle cx="534.86" cy="150.77" r="4" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.5"/>
+        <line class="sv-dash" x1="528" y1="151" x2="392" y2="151"/>
+        <text class="sv-s" x="384" y="147" text-anchor="end">达标点:三种方式在此重合</text>
+        <text class="sv-s" x="384" y="163" text-anchor="end">完成率 100% → 得分率 100%</text>
+
+        <text class="sv-s" x="92" y="462">自定义公式不在本图:它由 CEL 表达式直接给出得分,形状不固定,用于事故次数一类无法用完成率表达的特殊口径。</text>
+      </svg>
+    </div>
+    <figcaption><b>图 5</b>三种可画出的计分方式,横轴完成率、纵轴得分率。同一个 97% 的完成率:线性给 97 分,区间插值给 92.5 分,阶梯落在「95~100%」这一档给 90 分——差异不是误差,是口径选择。</figcaption>
+  </figure>
+
+  <div class="col">
+    <h3>一张填报单算出来是什么样</h3>
+  </div>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>指标</th><th class="num">权重</th><th class="num">目标</th><th class="num">实际</th><th class="num">完成率</th><th>计分方式</th><th class="num">得分率</th><th class="num">得分</th></tr></thead>
+      <tbody>
+        <tr><td>营业收入完成率</td><td class="num">50</td><td class="num">1200 万元</td><td class="num">1320</td><td class="num">110%</td><td>线性,封顶 120%</td><td class="num">110%</td><td class="num">55.0</td></tr>
+        <tr><td>利润完成率</td><td class="num">30</td><td class="num">180 万元</td><td class="num">144</td><td class="num">80%</td><td>区间 60%~120%</td><td class="num">50%</td><td class="num">15.0</td></tr>
+        <tr><td>客户满意度</td><td class="num">20</td><td class="num">90 分</td><td class="num">87.3</td><td class="num">97%</td><td>阶梯:95%~100% → 90%</td><td class="num">90%</td><td class="num">18.0</td></tr>
+        <tr class="sum"><td>合计</td><td class="num">100</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td>—</td><td class="num">—</td><td class="num">88.0</td></tr>
+      </tbody>
+      <caption><b>表 3</b>市场部一张填报单的计分示例(权重合计 100)。三行分别用了三种计分方式——同一张表里混用是常态,因为不同指标想鼓励的行为不同。系统的单元测试逐位比对了这张表的每一个数。</caption>
+    </table>
+  </div>
+
+  <div class="col">
+    <h3>填报动线:登录即处理</h3>
+    <p>工作台是六个岗位共用的落地页。区块<strong>不按岗位显隐,按数据范围显示</strong>——分公司核对人员在「待我核对」里只读得到本分公司的任务,部门填报人员的待填报区块里只有本部门的行。看得到不等于动得了:越权点动作会被服务端的岗位闸门拒绝。</p>
+  </div>
+
+  <figure>
+    <div class="shot"><img src="../手册/图片/01-02-gongzuotai.png" alt="工作台页面与左侧五组功能菜单:填报与审核、考核方案、结果与归档、基础设置、审计查询" loading="lazy"></div>
+    <figcaption><b>图 6</b>工作台与左侧菜单五个分组。配置类菜单(考核方案、基础设置)按岗位在<b>服务端</b>裁剪——不满足能力的导航项根本不下发到浏览器,而不是在前端藏起来。</figcaption>
+  </figure>
+
+  <div class="shots two">
+    <figure>
+      <div class="shot"><img src="../手册/图片/03-03-luru-shijizhi.png" alt="填报明细列表处于行内编辑状态,双击实际值单元格录入后工具条出现全部保存按钮" loading="lazy"></div>
+      <figcaption><b>图 7</b>按行填实际值,保存即出分。完成率、得分率、得分当场回填到同一张表,不用跳页、不用等批处理。</figcaption>
+    </figure>
+    <figure>
+      <div class="shot"><img src="../手册/图片/03-04-jisuan-shuoming.png" alt="填报明细记录详情中的计算说明字段,写明完成率、得分率与得分的取值过程" loading="lazy"></div>
+      <figcaption><b>图 8</b><span class="pill acc">可复核</span> 每一行都落一段「计算说明」。得分和自己手算的对不上时,打开这一段就能看到完成率怎么来的、封顶保底在哪一步生效、得分率取了哪一档。</figcaption>
+    </figure>
+  </div>
+
+  <div class="shots two">
+    <figure>
+      <div class="shot"><img src="../手册/图片/03-06-tijiao-beilan.png" alt="有指标未填实际值时点提交填报被拦下的提示,填报单保持填报中状态" loading="lazy"></div>
+      <figcaption><b>图 9</b><span class="pill stop">拦下</span> 有指标未填实际值,提交被拦,填报单原地保持「填报中」。回到明细用「未填实际值」页签就能找出漏的行。</figcaption>
+    </figure>
+    <figure>
+      <div class="shot"><img src="../手册/图片/03-07-tijiao-chenggong.png" alt="提交成功后右下角的提示与状态条推进到分公司核对中" loading="lazy"></div>
+      <figcaption><b>图 10</b><span class="pill ok">推进</span> 补齐后提交成功,状态条推进到「分公司核对中」,盖上提交时间与提交人。此刻实际值冻结,再改数只能走调整申请。</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="s6">
+  <div class="col">
+    <h2><i>06</i>并行核对与逐级审核</h2>
+    <p class="lede">提交之后,单据不再属于填报部门。它先摊给所有相关分公司并行核对,全部确认才继续;再逐级过人力审核与分管领导。每一步只有两个动作:放行,或者写明原因退回。</p>
+
+    <h3>并行核对:全部确认才推进</h3>
+    <p>填报单一提交,系统按方案里参与的分公司各生成一条核对任务。这些任务<strong>互不排队、同时进行</strong>,但推进条件是「全部确认无误」——有一家提出争议,单据就停在核对节点,不会因为其他家都点了确认而溜过去。方案里没有配置需要核对的分公司时,本节点自动跳过。</p>
+    <p>核对人员只能表态,不能改数。发现数据对不上,写清「哪一项、差多少、依据是什么」提出争议,由填报部门经数据调整流程更正,更正后回到队列点确认,流程继续。</p>
+  </div>
+
+  <div class="shots two">
+    <figure>
+      <div class="shot"><img src="../手册/图片/04-01-daiwo-hedui.png" alt="分公司核对人员的待我核对队列,每行显示任务名称、对应填报单、核对分公司与核对状态" loading="lazy"></div>
+      <figcaption><b>图 11</b>「待我核对」队列。只列得出与本分公司相关的任务——别的分公司的任务在数据层就不可见,不是靠视图筛选藏起来的。</figcaption>
+    </figure>
+    <figure>
+      <div class="shot"><img src="../手册/图片/04-03-tichu-zhengyi.png" alt="提出争议窗口,争议内容为必填项,下方是确认按钮" loading="lazy"></div>
+      <figcaption><b>图 12</b><span class="pill warn">阻断</span> 提出争议,争议内容必填。任务转为「有争议」,在争议解决前填报单不会往下推进。</figcaption>
+    </figure>
+  </div>
+
+  <div class="col">
+    <h3>逐级审核:放行或退回,没有第三种</h3>
+    <p>审核人从队列进入,不需要知道单据在哪个环节——队列本身就是环节。「待人力审核」「待领导审批」「待我核对」三个队列在左侧菜单有直达入口,点一次就到。</p>
+    <p><strong>驳回必须填原因</strong>,退回上一节点。退回到分公司核对节点时,全部分公司重新核对——这条口径是客户确认的第 8 项,目的是避免「改了一家的数,其他家的确认还算数」这种半有效状态。</p>
+  </div>
+
+  <div class="shots two">
+    <figure>
+      <div class="shot"><img src="../手册/图片/01-04-daiban-duilie.png" alt="填报单列表上方的队列页签:全部填报单、填报中、分公司核对中、待人力审核,右侧是还有 4 个的溢出入口" loading="lazy"></div>
+      <figcaption><b>图 13</b>填报单按状态分队列。每个人打开看到的行数不同——同一个「待人力审核」页签,人力审核看到全部,部门填报人员只看到本部门那一张。</figcaption>
+    </figure>
+    <figure>
+      <div class="shot"><img src="../手册/图片/06-02-lingdao-shenpi-duilie.png" alt="待领导审批队列中的填报单,状态显示为领导审批中,行右侧是操作菜单" loading="lazy"></div>
+      <figcaption><b>图 14</b>分管领导的「待领导审批」队列,只出现本人分管主体的单据。分管关系来自方案里的「参与主体」配置,换人只需改那一格。</figcaption>
+    </figure>
+  </div>
+
+  <div class="shots two">
+    <figure>
+      <div class="shot"><img src="../手册/图片/02-26-bohui-duihuakuang.png" alt="驳回窗口,驳回原因为必填项,下方是确认按钮" loading="lazy"></div>
+      <figcaption><b>图 15</b><span class="pill stop">退回</span> 驳回窗口。原因必填,不填点不动;填完退回上一节点,并在审核记录里留下一条带原因的驳回记录。</figcaption>
+    </figure>
+    <figure>
+      <div class="shot"><img src="../手册/图片/02-27-shenhe-tongguo.png" alt="审核通过窗口,审核意见为选填项,下方是确认按钮" loading="lazy"></div>
+      <figcaption><b>图 16</b><span class="pill ok">放行</span> 审核通过窗口。审核意见选填——通过是常态,不该为了留痕而强迫每个人编一句话;但谁在什么时候通过的,系统一定会记。</figcaption>
+    </figure>
+  </div>
+
+  <div class="col">
+    <div class="call">
+      <h4>按钮不是权限边界</h4>
+      <p>流程按钮只写「待执行动作」,是否允许推进由服务端 hook(<span class="mono">src/hooks/sheet.hook.ts</span>)按当前节点的审核岗位判定。绕过按钮直接写状态字段,同样会被拦下——这条曾经是一个真实缺陷(动作体以受信任身份写入被误当作系统写入而免检,任何岗位可越节点审批),已修复并由 29 条岗位闸门测试用例守住。</p>
+    </div>
+  </div>
+</section>
+
+<section id="s7">
+  <div class="col">
+    <h2><i>07</i>加减分与数据调整</h2>
+    <p class="lede">考核不可能一次填对。系统给出三条受控的改数通道,每条都要审批、都要留痕、都会触发重算——而不是让人回到表格里悄悄把数字改掉。</p>
+
+    <h3>三条通道各自改什么</h3>
+    <div class="defs">
+      <div><h4>源数据调整</h4><p>报错的是原始数据。批准后直接更正该行实际值,并<strong>重新计分</strong>——完成率、得分率、得分全部按新实际值重算。</p></div>
+      <div><h4>计算结果调整</h4><p>要更正的是得分本身。批准后只改该行得分,该行标记「已调整」,在填报单与汇总结果中都看得见,不悄悄改主体总分之外的数据。</p></div>
+      <div><h4>加减分</h4><p>指标之外的专项表彰或扣分。由人力审核按事项登记(分值、依据必填),人力负责人审批后计入最终得分,不封顶不保底。</p></div>
+      <div><h4>共同的约束</h4><p>发起人、审批人由系统按登录账号盖章,不能手工填;已批准并落地的调整不可撤销,要再改就重新提一份;归档后三条通道全部关闭。</p></div>
+    </div>
+  </div>
+
+  <figure class="wide">
+    <div class="canvas">
+      <svg viewBox="0 0 1120 392" role="img" aria-label="三条改数通道的重算传播:源数据调整批准后改写实际值并重算完成率得分率得分;计算结果调整只改该行得分并标记已调整;加减分批准后计入加减分合计。三者都汇入填报单最终得分,并触发四维考核结果重新生成。归档后三条通道全部关闭。">
+        <defs>
+          <marker id="f6-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" class="sv-arrow-a"/>
+          </marker>
+        </defs>
+
+        <rect class="sv-box" x="16" y="44" width="250" height="60" rx="4"/>
+        <text class="sv-tb" x="30" y="68">源数据(实际值)调整</text>
+        <text class="sv-s"  x="30" y="88">部门发起 → 人力审批「批准并落地」</text>
+
+        <rect class="sv-box" x="16" y="124" width="250" height="60" rx="4"/>
+        <text class="sv-tb" x="30" y="148">计算结果(得分)调整</text>
+        <text class="sv-s"  x="30" y="168">部门发起 → 人力审批「批准并落地」</text>
+
+        <rect class="sv-box" x="16" y="204" width="250" height="60" rx="4"/>
+        <text class="sv-tb" x="30" y="228">加减分</text>
+        <text class="sv-s"  x="30" y="248">人力审核登记 → 人力负责人批准</text>
+
+        <line class="sv-line-a" x1="266" y1="74"  x2="314" y2="74"  marker-end="url(#f6-ar)"/>
+        <line class="sv-line-a" x1="266" y1="154" x2="314" y2="154" marker-end="url(#f6-ar)"/>
+        <line class="sv-line-a" x1="266" y1="234" x2="314" y2="234" marker-end="url(#f6-ar)"/>
+
+        <rect class="sv-box" x="316" y="44" width="290" height="60" rx="4"/>
+        <text class="sv-t" x="330" y="68">改写该行实际值</text>
+        <text class="sv-s" x="330" y="88">→ 重算完成率 · 得分率 · 得分</text>
+
+        <rect class="sv-box" x="316" y="124" width="290" height="60" rx="4"/>
+        <text class="sv-t" x="330" y="148">只改该行得分</text>
+        <text class="sv-s" x="330" y="168">→ 该行标记「已调整」,汇总里可见</text>
+
+        <rect class="sv-box" x="316" y="204" width="290" height="60" rx="4"/>
+        <text class="sv-t" x="330" y="228">计入加减分合计</text>
+        <text class="sv-s" x="330" y="248">→ 不封顶、不保底</text>
+
+        <line class="sv-line-a" x1="606" y1="74"  x2="674" y2="150" marker-end="url(#f6-ar)"/>
+        <line class="sv-line-a" x1="606" y1="154" x2="674" y2="154" marker-end="url(#f6-ar)"/>
+        <line class="sv-line-a" x1="606" y1="234" x2="674" y2="158" marker-end="url(#f6-ar)"/>
+
+        <rect class="sv-box-a" x="676" y="124" width="180" height="60" rx="4"/>
+        <text class="sv-tb" x="766" y="148" text-anchor="middle">填报单最终得分</text>
+        <text class="sv-s"  x="766" y="167" text-anchor="middle">指标得分合计 + 加减分</text>
+
+        <line class="sv-line-a" x1="856" y1="154" x2="914" y2="154" marker-end="url(#f6-ar)"/>
+
+        <rect class="sv-box-a" x="916" y="124" width="188" height="60" rx="4"/>
+        <text class="sv-tb" x="1010" y="148" text-anchor="middle">四维考核结果</text>
+        <text class="sv-s"  x="1010" y="167" text-anchor="middle">自动重新生成 + 重排名</text>
+
+        <line class="sv-rule" x1="16" y1="290" x2="1104" y2="290"/>
+        <text class="sv-s" x="16" y="312">每一次落地都写一条审核记录:调整前值 / 调整后值 / 原因 / 审批人 / 落地时间 —— 只增不改,不可回改。</text>
+
+        <rect class="sv-lock" x="16" y="326" width="1088" height="52" rx="4"/>
+        <text class="sv-tb" x="34" y="348" fill="var(--ok)">归档之后</text>
+        <text class="sv-s"  x="34" y="366">三条通道全部关闭:填报单、明细、加减分转为只读,快照校验和固定;发现问题在下一周期修正,不回改历史。</text>
+      </svg>
+    </div>
+    <figcaption><b>图 6</b>改数的三条受控通道与它们的重算传播。关键在最右边那一格:任何一条通道落地,四维结果与排名都自动重算,不需要有人记得去「刷新汇总」——这是 Excel 时代最容易漏掉的一步。</figcaption>
+  </figure>
+
+  <div class="shots two">
+    <figure>
+      <div class="shot"><img src="../手册/图片/02-28-dengji-jiajianfen.png" alt="新建加减分窗口,含事项、类型(加分或扣分)、分值与依据字段" loading="lazy"></div>
+      <figcaption><b>图 17</b>登记加减分。分值与依据必填,依据要写清制度条款或文件号。登记与审批分属两个岗位——人力审核提出,人力负责人批。</figcaption>
+    </figure>
+    <figure>
+      <div class="shot"><img src="../手册/图片/02-29-shenpi-shuju-tiaozheng.png" alt="数据调整的待审批队列与行操作菜单入口,列出调整类型、调整前值、调整后值与调整原因" loading="lazy"></div>
+      <figcaption><b>图 18</b>数据调整的「待审批」队列。「调整前值」由系统自动带出,不给人手填的机会——留痕的价值取决于原值是否可信。</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="s8">
+  <div class="col">
+    <h2><i>08</i>汇总与结果应用</h2>
+    <p class="lede">一张填报单只有一个最终得分,但这个分要落到四个不同的问题上:这个部门考得怎么样、这家分公司排第几、张三个人该拿多少、王总分管的这一摊整体如何。四个维度、四套口径,由同一个汇总引擎在审批通过的那一刻一次生成。</p>
+  </div>
+
+  <figure class="wide">
+    <div class="canvas">
+      <svg viewBox="0 0 1120 432" role="img" aria-label="四维汇总口径:已通过的填报单、到人分工与个人承接项、参与主体配置三路输入汇入汇总引擎,引擎生成部门、分公司、到人、分管领导四个维度的结果与排名,每个维度标注了各自的计分口径。">
+        <defs>
+          <marker id="f7-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" class="sv-arrow-a"/>
+          </marker>
+        </defs>
+
+        <rect class="sv-box" x="16" y="44" width="230" height="72" rx="4"/>
+        <text class="sv-tb" x="30" y="68">已通过的填报单</text>
+        <text class="sv-s"  x="30" y="88">每个主体一张 · 最终得分</text>
+        <text class="sv-m"  x="30" y="106">kpi_entry_sheet</text>
+
+        <rect class="sv-box" x="16" y="150" width="230" height="64" rx="4"/>
+        <text class="sv-tb" x="30" y="174">到人分工 · 个人承接项</text>
+        <text class="sv-s"  x="30" y="194">员工 × 板块 × 权重 × 系数</text>
+
+        <rect class="sv-box" x="16" y="246" width="230" height="64" rx="4"/>
+        <text class="sv-tb" x="30" y="270">参与主体配置</text>
+        <text class="sv-s"  x="30" y="290">主体权重 · 分管领导</text>
+
+        <line class="sv-line-a" x1="246" y1="80"  x2="292" y2="140" marker-end="url(#f7-ar)"/>
+        <line class="sv-line-a" x1="246" y1="182" x2="292" y2="170" marker-end="url(#f7-ar)"/>
+        <line class="sv-line-a" x1="246" y1="278" x2="292" y2="200" marker-end="url(#f7-ar)"/>
+
+        <rect class="sv-box-a" x="296" y="100" width="180" height="140" rx="4"/>
+        <text class="sv-tb" x="386" y="140" text-anchor="middle">汇总引擎</text>
+        <text class="sv-s"  x="386" y="160" text-anchor="middle">审批通过 · 归档</text>
+        <text class="sv-s"  x="386" y="175" text-anchor="middle">调整落地时重算</text>
+        <text class="sv-m"  x="386" y="200" text-anchor="middle">src/lib/aggregate.ts</text>
+
+        <line class="sv-line-a" x1="476" y1="170" x2="533" y2="72"  marker-end="url(#f7-ar)"/>
+        <line class="sv-line-a" x1="476" y1="170" x2="533" y2="163" marker-end="url(#f7-ar)"/>
+        <line class="sv-line-a" x1="476" y1="170" x2="533" y2="255" marker-end="url(#f7-ar)"/>
+        <line class="sv-line-a" x1="476" y1="170" x2="533" y2="347" marker-end="url(#f7-ar)"/>
+
+        <rect class="sv-box" x="536" y="32" width="568" height="76" rx="4"/>
+        <text class="sv-tb" x="552" y="56">维度一 · 部门</text>
+        <text class="sv-s"  x="552" y="76">口径:该部门填报单的最终得分</text>
+        <text class="sv-s"  x="552" y="94">排名:在全部部门主体内排序</text>
+
+        <rect class="sv-box" x="536" y="124" width="568" height="76" rx="4"/>
+        <text class="sv-tb" x="552" y="148">维度二 · 分公司</text>
+        <text class="sv-s"  x="552" y="168">口径:该分公司填报单的最终得分</text>
+        <text class="sv-s"  x="552" y="186">排名:在全部分公司主体内排序</text>
+
+        <rect class="sv-box" x="536" y="216" width="568" height="76" rx="4"/>
+        <text class="sv-tb" x="552" y="240">维度三 · 到人</text>
+        <text class="sv-s"  x="552" y="260">Σ(部门板块得分 × 分工权重% × 个人系数)+ Σ(承接项得分率% × 承接权重%)</text>
+        <text class="sv-s"  x="552" y="278">不封顶 —— 承担得多、承担的板块考得好,分就高</text>
+
+        <rect class="sv-box" x="536" y="308" width="568" height="76" rx="4"/>
+        <text class="sv-tb" x="552" y="332">维度四 · 分管领导</text>
+        <text class="sv-s"  x="552" y="352">分管主体的最终得分,按主体权重加权平均</text>
+        <text class="sv-s"  x="552" y="370">主体权重全部留空时,退化为算术平均</text>
+
+        <line class="sv-rule" x1="16" y1="398" x2="1104" y2="398"/>
+        <text class="sv-s" x="16" y="420">四个维度都能从结果列表钻取回填报单与指标明细;计算明细逐指标给出得分率、得分与「已调整」标记 —— 分数从哪来,一路点得回去。</text>
+      </svg>
+    </div>
+    <figcaption><b>图 7</b>四维汇总口径。口径的唯一真值在 <span class="mono">src/lib/aggregate.ts</span>,是纯函数;换口径改的是这一个文件,不是四张报表各改一遍。到人与分管领导两个维度是跨对象加权计算,这也是它们必须由服务端算、而不能由视图公式表达的原因。</figcaption>
+  </figure>
+
+  <div class="col">
+    <p>结果之上还有三张报表与两个看板:<strong>组织单元 × 维度矩阵</strong>(可钻取)、<strong>到人得分</strong>、<strong>指标完成情况</strong>,以及结果看板与流程进度看板。看板回答的是「整体什么水平」,报表回答的是「具体哪一格」。</p>
+  </div>
+
+  <div class="shots two">
+    <figure>
+      <div class="shot"><img src="../手册/图片/06-04-fenguan-zhuti-jieguo.png" alt="考核结果列表,按维度列出部门与分管领导两条结果,上方有部门、分公司、到人、分管领导四个页签" loading="lazy"></div>
+      <figcaption><b>图 19</b>考核结果列表,四个维度各一个页签。分管领导维度那一行的得分,是它下面几个主体按主体权重加权出来的——点进去能看到是哪几个主体。</figcaption>
+    </figure>
+    <figure>
+      <div class="shot"><img src="../手册/图片/06-05-jieguo-kanban.png" alt="考核结果看板的统计卡片与各组织单元平均得分图表,页面上方有汇总维度下拉" loading="lazy"></div>
+      <figcaption><b>图 20</b>结果看板:结果条数、平均分、最高最低分与各组织单元平均得分,「汇总维度」下拉可以只看某一个维度。</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="s9">
+  <div class="col">
+    <h2><i>09</i>归档与审计</h2>
+    <p class="lede">归档是一个周期的句号。快照生成之后,这一期的数据就不再是「当前数据」,而是一份带校验和的历史记录——想改也改不动。</p>
+
+    <h3>归档快照</h3>
+    <p>人力审核在「已通过」的填报单上点归档,系统把填报单、明细、加减分的当时状态序列化成一份 JSON 载荷,算出 <strong>SHA-256 校验和</strong>一并存下。此后填报单、明细、加减分全部转为只读,hook 拒绝任何改写与删除。校验和用于核验快照内容未被改动:任何时候都能把快照重新算一遍校验和,与存档值比对。</p>
+    <p>归档之后发现错了怎么办?<strong>不回改,在下一周期修正</strong>——这是客户确认的第 11 项口径。一份能被追溯修改的历史记录,和没有历史记录差别不大。</p>
+
+    <h3>审计查询</h3>
+    <p>审核记录对象只增不改,按时间倒序列出每一次流程动作:记录编号、填报单、动作、节点、经办人、原因或意见、时间。加减分与数据调整的审批留痕也走同一张表。支持按填报单、动作、经办人、时间范围筛选并导出,另有「驳回记录」与「时间线」两个视图。</p>
+    <p>经办人一律以登录账号为准:提交人、审批人、归档人、调整发起人这些字段由系统盖章,界面上不给手工填写的入口。</p>
+  </div>
+
+  <div class="shots two">
+    <figure>
+      <div class="shot"><img src="../手册/图片/02-32-guidang-kuaizhao.png" alt="归档快照列表中的一条快照记录,含方案、考核主体、最终得分、校验和与归档人" loading="lazy"></div>
+      <figcaption><b>图 21</b><span class="pill ok">已封存</span> 归档快照记录:方案、考核主体、最终得分、校验和、归档人。这一行不可修改、不可删除。</figcaption>
+    </figure>
+    <figure>
+      <div class="shot"><img src="../手册/图片/02-33-shenji-chaxun.png" alt="审核记录列表,按时间倒序列出流程动作,工具条上有筛选与导出" loading="lazy"></div>
+      <figcaption><b>图 22</b>审核记录。一张单从生成、提交、核对、审核、调整到归档的完整轨迹,每条都带经办人与时间,可筛选可导出。</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="s10">
+  <div class="col">
+    <h2><i>10</i>权限与数据范围</h2>
+    <p class="lede">「本部门 / 本分公司 / 分管范围」这三个词,在系统里不是配置项,而是方案发布时算出来的结果。这决定了一件事:组织调整、换分管领导、增减参与主体,都只改数据,不改系统配置。</p>
+
+    <h3>为什么不做成「按组织层级授权」</h3>
+    <p>常见做法是按组织架构树给权限:某人属于哪个部门,就能看该部门及以下的数据。这套做法在考核场景下会立刻失效——分管领导分管的主体<strong>跨部门、逐期变化</strong>,到人分工也跨板块。所以数据范围的真值不在组织树上,而在<strong>方案</strong>里:方案说了谁参与、谁分管、谁承接,可见范围就照着生成。</p>
+  </div>
+
+  <figure class="wide">
+    <div class="canvas">
+      <svg viewBox="0 0 1120 400" role="img" aria-label="数据范围模型:填报单等对象默认可见性为 private,方案发布时读取参与主体、分管领导、到人分工三类配置,写入带方案标识的共享规则,分别放宽部门填报人员、分公司核对人员、分管领导三类岗位的可见范围;重新发布时对账使旧授权失效,方案关闭或归档后规则转为只读。">
+        <defs>
+          <marker id="f8-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" class="sv-arrow-a"/>
+          </marker>
+        </defs>
+
+        <rect class="sv-box" x="16" y="32" width="1088" height="64" rx="4"/>
+        <text class="sv-tb" x="32" y="54">基线 · 不发方案,谁都看不见</text>
+        <text class="sv-s"  x="32" y="74">填报单、填报明细、核对任务、数据调整、考核结果的默认可见性(OWD)= private;部门、分公司、分管领导三类岗位的权限集读范围 = 仅本人。</text>
+        <text class="sv-s"  x="32" y="89" fill="var(--accent)">共享规则只能放宽,不能收窄 —— 越权访问在数据层被拒绝,不依赖界面隐藏。</text>
+
+        <rect class="sv-box" x="16" y="120" width="250" height="44" rx="4"/>
+        <text class="sv-t" x="30" y="138">参与主体</text>
+        <text class="sv-s" x="30" y="154">主体 = 组织单元</text>
+
+        <rect class="sv-box" x="16" y="178" width="250" height="44" rx="4"/>
+        <text class="sv-t" x="30" y="196">分管领导</text>
+        <text class="sv-s" x="30" y="212">主体 → 人</text>
+
+        <rect class="sv-box" x="16" y="236" width="250" height="44" rx="4"/>
+        <text class="sv-t" x="30" y="254">到人分工</text>
+        <text class="sv-s" x="30" y="270">员工 × 部门板块</text>
+
+        <line class="sv-line-a" x1="266" y1="142" x2="314" y2="180" marker-end="url(#f8-ar)"/>
+        <line class="sv-line-a" x1="266" y1="200" x2="314" y2="198" marker-end="url(#f8-ar)"/>
+        <line class="sv-line-a" x1="266" y1="258" x2="314" y2="216" marker-end="url(#f8-ar)"/>
+
+        <rect class="sv-box-a" x="316" y="120" width="220" height="160" rx="4"/>
+        <text class="sv-tb" x="426" y="150" text-anchor="middle">方案发布</text>
+        <text class="sv-s"  x="426" y="174" text-anchor="middle">读三类配置</text>
+        <text class="sv-s"  x="426" y="192" text-anchor="middle">写入共享规则</text>
+        <text class="sv-s"  x="426" y="210" text-anchor="middle">条件里带方案标识</text>
+        <text class="sv-s"  x="426" y="228" text-anchor="middle">规则名按方案加前缀</text>
+        <text class="sv-m"  x="426" y="256" text-anchor="middle">sharing-service.ts</text>
+
+        <line class="sv-line-a" x1="536" y1="200" x2="584" y2="142" marker-end="url(#f8-ar)"/>
+        <line class="sv-line-a" x1="536" y1="200" x2="584" y2="200" marker-end="url(#f8-ar)"/>
+        <line class="sv-line-a" x1="536" y1="200" x2="584" y2="258" marker-end="url(#f8-ar)"/>
+
+        <rect class="sv-box" x="586" y="120" width="518" height="44" rx="4"/>
+        <text class="sv-t" x="600" y="138">部门 / 分公司填报人员</text>
+        <text class="sv-s" x="600" y="154">看得见:本单元那张填报单及其全部明细,可编辑直至提交</text>
+
+        <rect class="sv-box" x="586" y="178" width="518" height="44" rx="4"/>
+        <text class="sv-t" x="600" y="196">分公司核对人员</text>
+        <text class="sv-s" x="600" y="212">看得见:本分公司的核对任务与被核对的填报数据,只读</text>
+
+        <rect class="sv-box" x="586" y="236" width="518" height="44" rx="4"/>
+        <text class="sv-t" x="600" y="254">分管领导</text>
+        <text class="sv-s" x="600" y="270">看得见:分管主体的填报单与考核结果,可审批</text>
+
+        <rect class="sv-box" x="16" y="310" width="536" height="76" rx="4"/>
+        <text class="sv-tb" x="32" y="334">换人、撤主体怎么办</text>
+        <text class="sv-s"  x="32" y="354">重新发布时对本方案的规则做一次对账:换掉分管领导、撤掉参与</text>
+        <text class="sv-s"  x="32" y="372">主体、撤掉到人分工,旧授权当场失效;历史方案的授权原样保留。</text>
+
+        <rect class="sv-lock" x="568" y="310" width="536" height="76" rx="4"/>
+        <text class="sv-tb" x="584" y="334" fill="var(--ok)">方案关闭 / 归档之后</text>
+        <text class="sv-s"  x="584" y="354">规则转为「留读、去写」:填报单、核对任务、数据调整由可编辑</text>
+        <text class="sv-s"  x="584" y="372">降为只读 —— 历史还查得到,但谁也改不动了。</text>
+      </svg>
+    </div>
+    <figcaption><b>图 8</b>数据范围随方案生成。这条设计的实际收益在实施阶段:接入一家新单位的组织架构,或者本单位年中调整部门,都不需要动系统里的任何一条权限配置——重新发布方案,可见范围自己就对了。</figcaption>
+  </figure>
+</section>
+
+<section id="s11">
+  <div class="col">
+    <h2><i>11</i>系统架构与对象模型</h2>
+    <p class="lede">系统建在 ObjectStack 17.x 元数据平台上:组织、账号、权限、审计、导入导出、列表与表单这些通用能力直接复用平台;考核专属的六件事——计分、审核状态机、发布生成、调整落地、快照只读、结果汇总——由服务端代码点承担。</p>
+
+    <h3>自建了什么,复用了什么</h3>
+    <div class="defs">
+      <div><h4>直接复用平台</h4><p>组织单元与用户、岗位与权限集、共享规则、字段历史与审计日志、列表 / 表单 / 内联网格、Excel 导入导出、报表与看板、账号安全策略。这部分一行代码没写。</p></div>
+      <div><h4>六个服务端代码点</h4><p>计分引擎、审核状态机、方案发布生成、调整落地重算、归档快照与只读锁、结果汇总。它们都是平台 hook 与函数扩展,<strong>不改平台包</strong>。</p></div>
+      <div><h4>纯函数 + 单元测试</h4><p>计分、状态机、汇总、CEL 求值四件事写成不依赖运行时的纯函数,139 条单元测试逐条守住口径;其中 64 条守数据范围、29 条守岗位闸门。</p></div>
+      <div><h4>平台问题只上报</h4><p>遇到平台能力边界(导航项按岗位裁剪、视图页签溢出、多租户组织归属)一律向平台仓提 issue,应用侧只允许带环境闸门的临时夹具,并在夹具处注明对应 issue。</p></div>
+    </div>
+  </div>
+
+  <figure class="wide">
+    <div class="canvas">
+      <svg viewBox="0 0 1180 550" role="img" aria-label="对象模型总图:复用平台的组织单元与用户两个对象;自建 17 个对象分为指标库、考核方案、填报与审核、结果与归档四组,缩进表示主从关系;下方列出模块间的四条关键关系。">
+        <defs>
+          <marker id="f9-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" class="sv-arrow-a"/>
+          </marker>
+        </defs>
+
+        <text class="sv-s" x="16" y="26" font-weight="600">平台对象 —— 复用,不自建</text>
+        <rect class="sv-box-a" x="16" y="36" width="300" height="40" rx="4"/>
+        <text class="sv-t" x="30" y="53">组织单元</text>
+        <text class="sv-m" x="302" y="53" text-anchor="end">sys_business_unit</text>
+        <text class="sv-s" x="30" y="68">部门 / 分公司 · 考核主体 · 部门板块 · 核对方</text>
+
+        <rect class="sv-box-a" x="336" y="36" width="300" height="40" rx="4"/>
+        <text class="sv-t" x="350" y="53">用户</text>
+        <text class="sv-m" x="622" y="53" text-anchor="end">sys_user</text>
+        <text class="sv-s" x="350" y="68">到人分工 · 分管领导 · 审核人 · 经办人</text>
+
+        <text class="sv-s" x="660" y="53">六个岗位、六套权限集、密码策略与登录锁定、字段历史与审计日志,</text>
+        <text class="sv-s" x="660" y="68">全部由平台账号与权限体系承担。</text>
+
+        <!-- 指标库 -->
+        <rect x="16" y="110" width="230" height="114" rx="5" fill="none" stroke="var(--rule-strong)"/>
+        <text class="sv-s" x="30" y="130" font-weight="600">指标库</text>
+        <rect class="sv-box" x="28" y="144" width="206" height="30" rx="3"/>
+        <text class="sv-t" x="38" y="163" font-size="11.5">考核指标</text>
+        <text class="sv-m" x="224" y="163" text-anchor="end" font-size="9.5">kpi_indicator</text>
+        <rect class="sv-box" x="44" y="182" width="190" height="30" rx="3"/>
+        <text class="sv-t" x="54" y="201" font-size="11.5">阶梯区间</text>
+        <text class="sv-m" x="224" y="201" text-anchor="end" font-size="9.5">kpi_indicator_step</text>
+
+        <!-- 考核方案 -->
+        <rect x="272" y="110" width="290" height="304" rx="5" fill="none" stroke="var(--rule-strong)"/>
+        <text class="sv-s" x="286" y="130" font-weight="600">考核方案</text>
+        <rect class="sv-box" x="284" y="144" width="266" height="30" rx="3"/>
+        <text class="sv-t" x="294" y="163" font-size="11.5">考核方案</text>
+        <text class="sv-m" x="540" y="163" text-anchor="end" font-size="9.5">kpi_plan</text>
+        <rect class="sv-box" x="300" y="182" width="250" height="30" rx="3"/>
+        <text class="sv-t" x="310" y="201" font-size="11.5">流程节点</text>
+        <text class="sv-m" x="540" y="201" text-anchor="end" font-size="9.5">kpi_plan_step</text>
+        <rect class="sv-box" x="300" y="220" width="250" height="30" rx="3"/>
+        <text class="sv-t" x="310" y="239" font-size="11.5">参与主体</text>
+        <text class="sv-m" x="540" y="239" text-anchor="end" font-size="9.5">kpi_plan_subject</text>
+        <rect class="sv-box" x="300" y="258" width="250" height="30" rx="3"/>
+        <text class="sv-t" x="310" y="277" font-size="11.5">指标下达</text>
+        <text class="sv-m" x="540" y="277" text-anchor="end" font-size="9.5">kpi_plan_indicator</text>
+        <rect class="sv-box" x="300" y="296" width="250" height="30" rx="3"/>
+        <text class="sv-t" x="310" y="315" font-size="11.5">到人分工</text>
+        <text class="sv-m" x="540" y="315" text-anchor="end" font-size="9.5">kpi_staff_assignment</text>
+        <rect class="sv-box" x="316" y="334" width="234" height="30" rx="3"/>
+        <text class="sv-t" x="326" y="353" font-size="11.5">个人承接项</text>
+        <text class="sv-m" x="540" y="353" text-anchor="end" font-size="9.5">kpi_personal_item</text>
+        <rect class="sv-box" x="284" y="372" width="266" height="30" rx="3"/>
+        <text class="sv-t" x="294" y="391" font-size="11.5">指标争议</text>
+        <text class="sv-m" x="540" y="391" text-anchor="end" font-size="9.5">kpi_dispute</text>
+
+        <!-- 填报与审核 -->
+        <rect x="588" y="110" width="290" height="266" rx="5" fill="none" stroke="var(--rule-strong)"/>
+        <text class="sv-s" x="602" y="130" font-weight="600">填报与审核</text>
+        <rect class="sv-box" x="600" y="144" width="266" height="30" rx="3"/>
+        <text class="sv-t" x="610" y="163" font-size="11.5">填报单</text>
+        <text class="sv-m" x="856" y="163" text-anchor="end" font-size="9.5">kpi_entry_sheet</text>
+        <rect class="sv-box" x="616" y="182" width="250" height="30" rx="3"/>
+        <text class="sv-t" x="626" y="201" font-size="11.5">填报明细</text>
+        <text class="sv-m" x="856" y="201" text-anchor="end" font-size="9.5">kpi_entry_line</text>
+        <rect class="sv-box" x="616" y="220" width="250" height="30" rx="3"/>
+        <text class="sv-t" x="626" y="239" font-size="11.5">加减分</text>
+        <text class="sv-m" x="856" y="239" text-anchor="end" font-size="9.5">kpi_bonus</text>
+        <rect class="sv-box" x="600" y="258" width="266" height="30" rx="3"/>
+        <text class="sv-t" x="610" y="277" font-size="11.5">核对任务</text>
+        <text class="sv-m" x="856" y="277" text-anchor="end" font-size="9.5">kpi_check_task</text>
+        <rect class="sv-box" x="600" y="296" width="266" height="30" rx="3"/>
+        <text class="sv-t" x="610" y="315" font-size="11.5">数据调整</text>
+        <text class="sv-m" x="856" y="315" text-anchor="end" font-size="9.5">kpi_adjustment</text>
+        <rect class="sv-box" x="600" y="334" width="266" height="30" rx="3"/>
+        <text class="sv-t" x="610" y="353" font-size="11.5">审核记录</text>
+        <text class="sv-m" x="856" y="353" text-anchor="end" font-size="9.5">kpi_review_record</text>
+
+        <!-- 结果与归档 -->
+        <rect x="904" y="110" width="260" height="114" rx="5" fill="none" stroke="var(--rule-strong)"/>
+        <text class="sv-s" x="918" y="130" font-weight="600">结果与归档</text>
+        <rect class="sv-box" x="916" y="144" width="236" height="30" rx="3"/>
+        <text class="sv-t" x="926" y="163" font-size="11.5">考核结果</text>
+        <text class="sv-m" x="1142" y="163" text-anchor="end" font-size="9.5">kpi_result</text>
+        <rect class="sv-box" x="916" y="182" width="236" height="30" rx="3"/>
+        <text class="sv-t" x="926" y="201" font-size="11.5">归档快照</text>
+        <text class="sv-m" x="1142" y="201" text-anchor="end" font-size="9.5">kpi_snapshot</text>
+
+        <!-- 读法 -->
+        <rect class="sv-box" x="904" y="244" width="260" height="98" rx="4"/>
+        <text class="sv-tb" x="918" y="266">怎么读这张图</text>
+        <text class="sv-s"  x="918" y="288">缩进 = 主从:随主对象一并冻结与删除</text>
+        <text class="sv-s"  x="918" y="306">不缩进 = 独立对象,靠查找关联</text>
+        <text class="sv-s"  x="918" y="330">17 个自建对象 · 9 组主从 · 22 处查找</text>
+
+        <line class="sv-rule" x1="16" y1="438" x2="1164" y2="438"/>
+        <text class="sv-s" x="16" y="460" font-weight="600">模块间的四条关键关系</text>
+
+        <text class="sv-m" x="16"  y="496">kpi_plan</text>
+        <line class="sv-line-a" x1="96" y1="492" x2="256" y2="492" marker-end="url(#f9-ar)"/>
+        <text class="sv-s" x="176" y="484" text-anchor="middle">发布时生成</text>
+        <text class="sv-m" x="266" y="496">kpi_entry_sheet</text>
+
+        <text class="sv-m" x="600" y="496">kpi_plan_indicator</text>
+        <line class="sv-line-a" x1="756" y1="492" x2="916" y2="492" marker-end="url(#f9-ar)"/>
+        <text class="sv-s" x="836" y="484" text-anchor="middle">发布时复制为冻结副本</text>
+        <text class="sv-m" x="926" y="496">kpi_entry_line</text>
+
+        <text class="sv-m" x="16"  y="534">kpi_entry_sheet</text>
+        <line class="sv-line-a" x1="140" y1="530" x2="300" y2="530" marker-end="url(#f9-ar)"/>
+        <text class="sv-s" x="220" y="522" text-anchor="middle">审批通过时汇总</text>
+        <text class="sv-m" x="310" y="534">kpi_result</text>
+
+        <text class="sv-m" x="600" y="534">kpi_entry_sheet</text>
+        <line class="sv-line-a" x1="724" y1="530" x2="884" y2="530" marker-end="url(#f9-ar)"/>
+        <text class="sv-s" x="804" y="522" text-anchor="middle">归档时生成快照</text>
+        <text class="sv-m" x="894" y="534">kpi_snapshot</text>
+      </svg>
+    </div>
+    <figcaption><b>图 9</b>对象模型总图。主从关系(缩进)承担的是「一并冻结、一并删除」的语义:方案一发布,它下面的流程节点、参与主体、指标下达、到人分工全部随之冻结;填报单一归档,它下面的明细与加减分全部随之只读。</figcaption>
+  </figure>
+</section>
+
+<section id="s12">
+  <div class="col">
+    <h2><i>12</i>交付状态与后续计划</h2>
+    <p class="lede">一期已确认口径(设计方案第 1~10 章共 17 项)已全部实现并跑通;第二批产品化补充(第 18~35 项共 18 项)待逐条确认档次后排期。</p>
+
+    <h3>已验证的内容</h3>
+    <p>用演示数据把完整流程真实跑了一遍,并逐条断言:</p>
+    <ul>
+      <li>发布生成填报单与指标明细;发布前完整性检查的每一条都能拦住对应的错误配置;</li>
+      <li>线性、区间、阶梯三种计分结果与设计方案第 7 章示例<strong>逐位一致</strong>;</li>
+      <li>提交冻结、并行核对、争议阻断推进、驳回原因必填、退回上一节点;</li>
+      <li>审批通过后四维汇总,加减分与数据调整落地后自动重算;</li>
+      <li>归档快照不可改、不可删;</li>
+      <li>部门填报人员、分公司核对人员、分管领导三类账号的数据范围隔离,以及越节点操作被岗位闸门拒绝。</li>
+    </ul>
+    <p>验证手段有三层:<strong>139 条单元测试</strong>守计分、状态机、汇总、数据范围与岗位闸门的口径;<strong>端到端脚本</strong>经 REST 走完整考核链路;<strong>两套演示种子档案</strong>(通用企业 / 软件公司,后者 24 个指标覆盖四种计分方式全部分支)支撑演示与验收。此外交付了一册分角色<strong>操作手册</strong>,六个业务角色分章成册,62 张截图全部取自真实界面。</p>
+  </div>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>档次</th><th>含义</th><th class="num">项数</th><th>状态</th></tr></thead>
+      <tbody>
+        <tr><td>一期(已确认)</td><td>设计方案第 1~10 章,客户 2026-09-02 逐条确认</td><td class="num">17</td><td><span class="pill ok">已实现并跑通</span></td></tr>
+        <tr><td>一期补强</td><td>不改已确认口径,补齐上线即需要的能力:通知与待办、公式试算器、批量操作与 Excel 直接导入、结果等级、我的考核、统一争议、结果确认与申诉、非功能指标目标值、数据初始化与运维基线</td><td class="num">9</td><td><span class="pill warn">待客户确认档次</span></td></tr>
+        <tr><td>二期</td><td>扩展考核能力:定性指标计分、否决项与不占权重指标、目标三档与派生指标、个人考核单、审批人来源扩展、跨周期汇总、取数配置与定时导入</td><td class="num">7</td><td><span class="pill warn">待客户确认档次</span></td></tr>
+        <tr><td>产品化候选</td><td>面向多单位复用:外部接口与单点登录、指标库与方案模板库</td><td class="num">2</td><td><span class="pill acc">单独立项</span></td></tr>
+      </tbody>
+      <caption><b>表 4</b>范围分级。确认方式是对第 18~35 项逐条回复「同意默认」「改为 X」或「删除」;确认后设计方案升 V2.0,一期补强项纳入本期验收范围。</caption>
+    </table>
+  </div>
+
+  <div class="col">
+    <h3>工作项与协作口径</h3>
+    <p>开发按工作项(GitHub Issue)推进,当前 20 个工作项中 <strong>15 项已开发完成待验收</strong>、3 项待细化、2 项已关闭。方案分级、需求符合度清单、测试报告一律挂在对应工作项评论上。</p>
+    <p>遇到平台能力边界一律<strong>只上报、不修复</strong>:向平台仓提交现象、最小复现、期望能力与平台版本,不在平台仓开 PR。目前已上报四项(导航项按岗位裁剪不生效、视图页签溢出导致队列够不着、多租户下种子组织单元的归属对齐),应用侧只保留带环境闸门的临时夹具,并在夹具处注明对应 issue,平台修复后删除。</p>
+
+    <h3>下一步</h3>
+    <ol>
+      <li><strong>确认第二批 18 项的档次</strong>——这是当前唯一的阻塞项,决定本期验收范围。</li>
+      <li><strong>界面走查评审与真实数据量性能验证</strong>——目前尚未完成,需要贵方参与走查。</li>
+      <li><strong>现行 Excel 模板的口径翻译</strong>——把现有公式逐条翻译成四种计分方式之一,翻译不了的先提出来。这是实施阶段风险最集中的一步,建议配合公式试算器(第 19 项)一并推进。</li>
+      <li><strong>主数据准备</strong>——组织单元、用户与岗位、指标库、首个方案的导入与清洗。</li>
+      <li><strong>试运行</strong>——用一个真实考核周期跑一遍,值守并修复缺陷,出试运行报告。</li>
+    </ol>
+
+    <div class="call risk">
+      <h4>需要贵方注意的一处口径变化</h4>
+      <p>本方案与现状最大的差别是:<strong>Excel 自由公式与跨表引用不进系统</strong>,公式的作用由「指标计分规则」统一承担。这是获得「口径唯一、可复核、可重算」的代价。实施阶段需要贵方业务口径的负责人配合,把现行考核表里的每一条公式对应到四种计分方式之一;对应不上的,请尽早提出来单独讨论。</p>
+    </div>
+  </div>
+
+  <footer>
+    <p>本材料依据《KPI 考核管理系统 设计方案》V1.0(客户 2026-09-02 确认版,唯一需求基准)、《功能性需求文档》V1.3 与《操作手册》V0.1 编制,截图全部取自演示环境真实界面。</p>
+    <p>范围分级、待确认事项以设计方案第 11 章为准;方案分级、需求符合度清单与测试报告挂在对应工作项评论上。</p>
+  </footer>
+</section>
+
+</main>
+</div>
+</div>
