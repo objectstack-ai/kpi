@@ -15,6 +15,7 @@
 | [docs/02-总体方案蓝图.md](docs/02-总体方案蓝图.md) | os 能力映射、对象模型总图、模块依赖与开发顺序 |
 | [docs/手册/KPI考核管理系统-操作手册.md](docs/手册/KPI考核管理系统-操作手册.md) | 分角色操作手册 V0.1(送审稿):通用操作 + 五个业务角色分章,含真实系统截图;Word 成品在 [docs/交付/](docs/交付/),由 `pnpm docs:manual` 从本源稿生成 |
 | [docs/汇报/KPI考核管理系统-解决方案汇报.html](docs/汇报/KPI考核管理系统-解决方案汇报.html) | 解决方案汇报稿:业务流程、计分与汇总口径、权限模型九张示意图 + 26 张界面截图。图片走相对路径指向操作手册的截图(不重复入库);发布用的自包含单文件由 `pnpm docs:report` 生成 |
+| [scripts/build-report-deck.mjs](scripts/build-report-deck.mjs) | 从汇报稿同一批素材生成 19 页汇报 PPT(九张示意图 + 八张界面截图,每页带讲稿备注)。示意图需先从汇报稿 HTML 的内联 SVG 按 `figure` 截取导出;脚本头注说明了用法与依赖 |
 | [CLAUDE.md](CLAUDE.md) | 开发约定与 dev-issue 启用清单 |
 
 ## 快速开始
