@@ -1,0 +1,228 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>KPI Assessment — README diagrams (English)</title>
+<!--
+  README 配图的英文版源稿。两张图与 docs/汇报/ 那份汇报稿里的图 1、图 2 同源,
+  按英文重排了字宽(英文比中文占宽,盒子加宽到 140 / 160)。
+
+  导出 PNG:用无头浏览器按 figure 截取,2 倍像素密度,产物放 docs/readme/。
+  颜色直接写死浅色值 —— 这份只用于导出静态图,不进 Artifact,不需要双主题 token。
+-->
+<style>
+  body { margin: 0; background: #fff; font-family: "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif; }
+  figure { margin: 0; padding: 20px; background: #fff; width: max-content; }
+  svg { display: block; }
+  .box      { fill: #F7F9FC; stroke: #BCC6D3; stroke-width: 1; }
+  .box-a    { fill: #E5EBFA; stroke: #1D4ED8; stroke-width: 1; }
+  .box-sys  { fill: none;    stroke: #BCC6D3; stroke-width: 1; stroke-dasharray: 3 3; }
+  .box-lock { fill: #DDEFE8; stroke: #0E7A57; stroke-width: 1; }
+  .t   { fill: #151A21; font-size: 12.5px; }
+  .tb  { fill: #151A21; font-size: 12.5px; font-weight: 600; }
+  .s   { fill: #54606F; font-size: 10.5px; }
+  .lane{ fill: #54606F; font-size: 11.5px; font-weight: 600; }
+  .line   { stroke: #1D4ED8; stroke-width: 1.5; fill: none; }
+  .dash   { stroke: #7F8B9A; stroke-width: 1.1; fill: none; stroke-dasharray: 4 3; }
+  .stop   { stroke: #A81F27; stroke-width: 1.3; fill: none; stroke-dasharray: 5 3; }
+  .rule   { stroke: #DBE2EB; stroke-width: 1; }
+  .ar   { fill: #1D4ED8; }
+  .ar3  { fill: #7F8B9A; }
+  .ars  { fill: #A81F27; }
+  .accent { fill: #1D4ED8; }
+  .stopt  { fill: #A81F27; }
+</style>
+
+<!-- ══════════════ 图 1 · 泳道图 ══════════════ -->
+<figure id="flow">
+<svg viewBox="0 0 1400 512" width="1400" height="512" role="img"
+     aria-label="Swimlane diagram of one assessment cycle across five lanes: HR review configures and publishes the plan, the department reporter enters actuals and submits, branch checkers verify in parallel, HR reviews, the executive leader approves, and HR archives. A system lane shows what the platform does automatically at each of five points.">
+  <defs>
+    <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" class="ar"/></marker>
+    <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" class="ar3"/></marker>
+  </defs>
+
+  <rect x="0" y="412" width="1400" height="92" fill="#F7F9FC"/>
+
+  <text class="s" x="304"  y="20" text-anchor="middle" letter-spacing="1">① CONFIGURE &amp; PUBLISH</text>
+  <text class="s" x="616"  y="20" text-anchor="middle" letter-spacing="1">② ENTER</text>
+  <text class="s" x="1006" y="20" text-anchor="middle" letter-spacing="1">③ VERIFY &amp; REVIEW</text>
+  <text class="s" x="1318" y="20" text-anchor="middle" letter-spacing="1">④ ARCHIVE</text>
+  <line class="rule" x1="156"  y1="30" x2="452"  y2="30"/>
+  <line class="rule" x1="468"  y1="30" x2="764"  y2="30"/>
+  <line class="rule" x1="780"  y1="30" x2="1232" y2="30"/>
+  <line class="rule" x1="1248" y1="30" x2="1388" y2="30"/>
+
+  <line class="rule" x1="0" y1="44"  x2="1400" y2="44"/>
+  <line class="rule" x1="0" y1="136" x2="1400" y2="136"/>
+  <line class="rule" x1="0" y1="228" x2="1400" y2="228"/>
+  <line class="rule" x1="0" y1="320" x2="1400" y2="320"/>
+  <line class="rule" x1="0" y1="412" x2="1400" y2="412"/>
+  <line class="rule" x1="0" y1="504" x2="1400" y2="504"/>
+  <line class="rule" x1="152" y1="44" x2="152" y2="504"/>
+
+  <text class="lane" x="140" y="94"  text-anchor="end">HR Review</text>
+  <text class="lane" x="140" y="186" text-anchor="end">Department Reporter</text>
+  <text class="lane" x="140" y="278" text-anchor="end">Branch Checker</text>
+  <text class="lane" x="140" y="370" text-anchor="end">Executive Leader</text>
+  <text class="lane" x="140" y="456" text-anchor="end">System · automatic</text>
+
+  <!-- HR Review lane -->
+  <rect class="box" x="156" y="61" width="140" height="58" rx="4"/>
+  <text class="tb" x="226" y="83"  text-anchor="middle">Configure Plan</text>
+  <text class="s"  x="226" y="99"  text-anchor="middle">indicators · subjects</text>
+  <text class="s"  x="226" y="112" text-anchor="middle">weights · targets · steps</text>
+
+  <rect class="box-a" x="312" y="61" width="140" height="58" rx="4"/>
+  <text class="tb" x="382" y="83"  text-anchor="middle">Publish Plan</text>
+  <text class="s"  x="382" y="99"  text-anchor="middle">config freezes here</text>
+  <text class="s"  x="382" y="112" text-anchor="middle">changes need a new copy</text>
+
+  <rect class="box" x="936" y="61" width="140" height="58" rx="4"/>
+  <text class="tb" x="1006" y="83"  text-anchor="middle">HR Review</text>
+  <text class="s"  x="1006" y="99"  text-anchor="middle">approve, or reject</text>
+  <text class="s"  x="1006" y="112" text-anchor="middle">with a written reason</text>
+
+  <rect class="box-a" x="1248" y="61" width="140" height="58" rx="4"/>
+  <text class="tb" x="1318" y="83"  text-anchor="middle">Archive</text>
+  <text class="s"  x="1318" y="99"  text-anchor="middle">the period is sealed</text>
+  <text class="s"  x="1318" y="112" text-anchor="middle">fix in the next one</text>
+
+  <!-- Department Reporter lane -->
+  <rect class="box" x="468" y="153" width="140" height="58" rx="4"/>
+  <text class="tb" x="538" y="175" text-anchor="middle">Enter &amp; Score</text>
+  <text class="s"  x="538" y="191" text-anchor="middle">actuals row by row</text>
+  <text class="s"  x="538" y="204" text-anchor="middle">or import from Excel</text>
+
+  <rect class="box" x="624" y="153" width="140" height="58" rx="4"/>
+  <text class="tb" x="694" y="175" text-anchor="middle">Submit</text>
+  <text class="s"  x="694" y="191" text-anchor="middle">blocked while any</text>
+  <text class="s"  x="694" y="204" text-anchor="middle">actual is still blank</text>
+
+  <!-- Branch Checker lane -->
+  <rect class="box" x="780" y="245" width="140" height="58" rx="4"/>
+  <text class="tb" x="850" y="267" text-anchor="middle">Branch Verification</text>
+  <text class="s"  x="850" y="283" text-anchor="middle">all branches in parallel</text>
+  <text class="s"  x="850" y="296" text-anchor="middle">confirm, or dispute</text>
+
+  <!-- Executive Leader lane -->
+  <rect class="box" x="1092" y="337" width="140" height="58" rx="4"/>
+  <text class="tb" x="1162" y="359" text-anchor="middle">Executive Approval</text>
+  <text class="s"  x="1162" y="375" text-anchor="middle">only subjects they</text>
+  <text class="s"  x="1162" y="388" text-anchor="middle">oversee · final say</text>
+
+  <!-- System lane -->
+  <rect class="box-sys" x="312" y="429" width="140" height="58" rx="4"/>
+  <text class="t" x="382" y="451" text-anchor="middle">Integrity check</text>
+  <text class="s" x="382" y="468" text-anchor="middle">generates entry sheets</text>
+  <text class="s" x="382" y="481" text-anchor="middle">freezes target + rule copy</text>
+
+  <rect class="box-sys" x="468" y="429" width="140" height="58" rx="4"/>
+  <text class="t" x="538" y="451" text-anchor="middle">Scores on save</text>
+  <text class="s" x="538" y="468" text-anchor="middle">completion · rate · score</text>
+  <text class="s" x="538" y="481" text-anchor="middle">plus a calculation trace</text>
+
+  <rect class="box-sys" x="624" y="429" width="140" height="58" rx="4"/>
+  <text class="t" x="694" y="451" text-anchor="middle">Creates check tasks</text>
+  <text class="s" x="694" y="468" text-anchor="middle">one per branch that</text>
+  <text class="s" x="694" y="481" text-anchor="middle">the plan involves</text>
+
+  <rect class="box-sys" x="1092" y="429" width="140" height="58" rx="4"/>
+  <text class="t" x="1162" y="451" text-anchor="middle">Builds results</text>
+  <text class="s" x="1162" y="468" text-anchor="middle">four dimensions + rank</text>
+  <text class="s" x="1162" y="481" text-anchor="middle">drillable to the line</text>
+
+  <rect class="box-sys" x="1248" y="429" width="140" height="58" rx="4"/>
+  <text class="t" x="1318" y="451" text-anchor="middle">Writes the snapshot</text>
+  <text class="s" x="1318" y="468" text-anchor="middle">SHA-256 checksum</text>
+  <text class="s" x="1318" y="481" text-anchor="middle">everything turns read-only</text>
+
+  <!-- flow -->
+  <line class="line" x1="296" y1="90" x2="310" y2="90" marker-end="url(#a1)"/>
+  <polyline class="line" points="452,90 460,90 460,182 466,182" marker-end="url(#a1)"/>
+  <line class="line" x1="608" y1="182" x2="622" y2="182" marker-end="url(#a1)"/>
+  <polyline class="line" points="764,182 772,182 772,274 778,274" marker-end="url(#a1)"/>
+  <polyline class="line" points="920,274 928,274 928,90 934,90" marker-end="url(#a1)"/>
+  <polyline class="line" points="1076,90 1084,90 1084,366 1090,366" marker-end="url(#a1)"/>
+  <polyline class="line" points="1232,366 1240,366 1240,90 1246,90" marker-end="url(#a1)"/>
+
+  <!-- triggers -->
+  <line class="dash" x1="382"  y1="119" x2="382"  y2="427" marker-end="url(#a2)"/>
+  <line class="dash" x1="538"  y1="211" x2="538"  y2="427" marker-end="url(#a2)"/>
+  <line class="dash" x1="694"  y1="211" x2="694"  y2="427" marker-end="url(#a2)"/>
+  <line class="dash" x1="1162" y1="395" x2="1162" y2="427" marker-end="url(#a2)"/>
+  <line class="dash" x1="1318" y1="119" x2="1318" y2="427" marker-end="url(#a2)"/>
+</svg>
+</figure>
+
+<!-- ══════════════ 图 2 · 状态机与闸门 ══════════════ -->
+<figure id="states">
+<svg viewBox="0 0 1320 330" width="1320" height="330" role="img"
+     aria-label="State machine for an entry sheet: Entering, Branch Verification, Under HR Review, Executive Approval, Passed, Archived. Each transition carries the gate that must pass. HR review and executive approval can reject back one step, and actuals are frozen from submission onward.">
+  <defs>
+    <marker id="b1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" class="ar"/></marker>
+    <marker id="b2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" class="ars"/></marker>
+  </defs>
+
+  <rect class="box-sys" x="16" y="6" width="160" height="44" rx="4"/>
+  <text class="t" x="96" y="26" text-anchor="middle">Plan published</text>
+  <text class="s" x="96" y="41" text-anchor="middle">one sheet per subject</text>
+  <line class="line" x1="60" y1="50" x2="60" y2="124" marker-end="url(#b1)"/>
+
+  <rect class="box"      x="16"   y="126" width="160" height="54" rx="4"/>
+  <text class="tb" x="96"   y="150" text-anchor="middle">Entering</text>
+  <text class="s"  x="96"   y="167" text-anchor="middle">Department Reporter</text>
+
+  <rect class="box"      x="242"  y="126" width="160" height="54" rx="4"/>
+  <text class="tb" x="322"  y="150" text-anchor="middle">Branch Verification</text>
+  <text class="s"  x="322"  y="167" text-anchor="middle">Branch Checker</text>
+
+  <rect class="box"      x="468"  y="126" width="160" height="54" rx="4"/>
+  <text class="tb" x="548"  y="150" text-anchor="middle">Under HR Review</text>
+  <text class="s"  x="548"  y="167" text-anchor="middle">HR Reviewer</text>
+
+  <rect class="box"      x="694"  y="126" width="160" height="54" rx="4"/>
+  <text class="tb" x="774"  y="150" text-anchor="middle">Executive Approval</text>
+  <text class="s"  x="774"  y="167" text-anchor="middle">Executive Leader</text>
+
+  <rect class="box-a"    x="920"  y="126" width="160" height="54" rx="4"/>
+  <text class="tb" x="1000" y="150" text-anchor="middle">Passed</text>
+  <text class="s"  x="1000" y="167" text-anchor="middle">results generated</text>
+
+  <rect class="box-lock" x="1146" y="126" width="160" height="54" rx="4"/>
+  <text class="tb" x="1226" y="150" text-anchor="middle">Archived</text>
+  <text class="s"  x="1226" y="167" text-anchor="middle">immutable</text>
+
+  <text class="tb accent" x="209"  y="90"  text-anchor="middle">Submit</text>
+  <text class="s"  x="209"  y="105" text-anchor="middle">gate: every actual filled in</text>
+  <text class="s"  x="209"  y="118" text-anchor="middle">position: Department Reporter</text>
+  <line class="line" x1="176" y1="153" x2="240" y2="153" marker-end="url(#b1)"/>
+
+  <text class="tb accent" x="435"  y="90"  text-anchor="middle">All branches confirm</text>
+  <text class="s"  x="435"  y="105" text-anchor="middle">one open dispute stops it</text>
+  <text class="s"  x="435"  y="118" text-anchor="middle">skipped if no branch verifies</text>
+  <line class="line" x1="402" y1="153" x2="466" y2="153" marker-end="url(#b1)"/>
+
+  <text class="tb accent" x="661"  y="90"  text-anchor="middle">Approve</text>
+  <text class="s"  x="661"  y="105" text-anchor="middle">position: HR Reviewer</text>
+  <text class="s"  x="661"  y="118" text-anchor="middle">comment optional</text>
+  <line class="line" x1="628" y1="153" x2="692" y2="153" marker-end="url(#b1)"/>
+
+  <text class="tb accent" x="887"  y="90"  text-anchor="middle">Approve</text>
+  <text class="s"  x="887"  y="105" text-anchor="middle">only the subject's own leader</text>
+  <text class="s"  x="887"  y="118" text-anchor="middle">builds the four dimensions</text>
+  <line class="line" x1="854" y1="153" x2="918" y2="153" marker-end="url(#b1)"/>
+
+  <text class="tb accent" x="1113" y="90"  text-anchor="middle">Archive</text>
+  <text class="s"  x="1113" y="105" text-anchor="middle">position: HR Reviewer</text>
+  <text class="s"  x="1113" y="118" text-anchor="middle">snapshot + SHA-256</text>
+  <line class="line" x1="1080" y1="153" x2="1144" y2="153" marker-end="url(#b1)"/>
+
+  <polyline class="stop" points="774,180 774,214 550,214 550,182" marker-end="url(#b2)"/>
+  <text class="s stopt" x="661" y="208" text-anchor="middle">Reject · reason required · back one step</text>
+
+  <polyline class="stop" points="520,180 520,252 322,252 322,182" marker-end="url(#b2)"/>
+  <text class="s stopt" x="420" y="246" text-anchor="middle">Reject → every branch verifies again</text>
+
+  <path d="M242,282 L242,292 L1306,292 L1306,282" fill="none" stroke="#BCC6D3"/>
+  <text class="s" x="774" y="310" text-anchor="middle">Actuals are frozen from submission onward — corrections go through a Data Adjustment request</text>
+</svg>
+</figure>
